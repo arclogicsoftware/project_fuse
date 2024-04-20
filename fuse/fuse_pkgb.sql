@@ -330,6 +330,7 @@ procedure assistant (
    p_session_name in varchar2 default fuse.g_session.session_name,
    p_exclude in number default 0) is
 begin
+   debug('assistant: '||p_prompt);
    set_session(p_session_name);
    insert into ai_session_prompt (session_id, prompt_role, prompt, exclude, end_time) 
       values (fuse.g_session.session_id, 'assistant', p_prompt, p_exclude, systimestamp);
