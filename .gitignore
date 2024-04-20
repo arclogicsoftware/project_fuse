@@ -1,0 +1,4 @@
+*.tmp*
+*.pack
+app/app_customer.sql
+secret*
