@@ -2,3 +2,4 @@
 *.pack
 app/app_customer.sql
 secret*
+*.secret

@@ -8,8 +8,8 @@ procedure post_request_all (
    v_header_val varchar2(4000);
 begin
    debug('post_request_all: '||p_data);
-   -- The entire response is stored in last_response_json global var. Use with caution of course.
-   app_api.last_response_json := apex_web_service.make_rest_request (
+   -- The entire response is stored in response global var. Use with caution of course.
+   app_api.response := apex_web_service.make_rest_request (
       p_url         => p_url, 
       p_http_method => 'POST',
       p_body        => p_data);
@@ -26,11 +26,11 @@ begin
    app_api.last_status_code := apex_web_service.g_status_code;
    debug('g_reason_phrase: '||apex_web_service.g_reason_phrase);
    debug('last_status_code: '||app_api.last_status_code);
-   debug('last_response_json: '||app_api.last_response_json);
+   debug('response: '||app_api.response);
 
    -- The response is parsed into individual rows in the json_data table.
    app_json.json_to_data_table (
-      p_json_data=>app_api.last_response_json,
+      p_json_data=>app_api.response,
       p_json_key=>p_request_id);
 
    app_json.assert_no_errors (
@@ -89,16 +89,6 @@ begin
 exception
    when no_data_found then
       raise_application_error(-20000, 'Provider not found: '||p_provider_id);
-end;
-
-function get_last_session_id (
-   p_session_name in varchar2) return number deterministic is 
-   v number;
-begin
-   select max(session_id) into v from ai_session where session_name = p_session_name
-      and status = 'inactive'
-      and call_count>0;
-   return v;
 end;
 
 function get_model (
@@ -298,31 +288,30 @@ procedure create_session (
    p_max_tokens in number default null,
    p_randomness in number default null,
    p_pause in number default null) is 
-   m ai_model%rowtype;
-   v_model_name ai_model.model_name%type := p_model_name;
+   v_model_name ai_model.model_name%type := nvl(p_model_name, fuse.g_default_model_name);
    v_max_tokens ai_session.max_tokens%type := 1024;
    v_randomness ai_session.randomness%type := 1;
    v_pause ai_session.pause%type := 0;
-   n number;
-   v_session ai_session%rowtype;
+   v_session_name ai_session.session_name%type;
+   v_model_id ai_model.model_id%type;
 begin
+   -- select p_session_name||'_'||sys_context('userenv', 'sessionid') info v_session_name from dual;
    debug('create_session: '||p_session_name);
-   update ai_session set status = 'inactive' where status = 'active' and session_name = p_session_name;
+   update ai_session set status = 'inactive' where status = 'active' and session_name = v_session_name;
 
-   -- When the only parameter privided is the session_name...
+   -- When the only parameter provided is the session_name...
    if p_model_name is null and p_max_tokens is null and p_randomness is null and p_pause is null then 
-      -- We will borrow the attributes from the last ai_session in the current session.
+      -- We will borrow the attributes from the last ai_session created.
+      set_session(v_session_name);
       v_model_name := fuse.g_model.model_name;
       v_max_tokens := fuse.g_session.max_tokens;
       v_randomness := fuse.g_session.randomness;
       v_pause := fuse.g_session.pause;
-      m := get_model(p_model_name=>v_model_name);
-   else 
-      m := get_model(p_model_name=>v_model_name);
    end if;
+   select model_id into v_model_id from ai_model where model_name = v_model_name;
    insert into ai_session (session_name, model_id, max_tokens, randomness, pause) 
-      values (p_session_name, m.model_id, v_max_tokens, v_randomness, v_pause);
-   set_session(p_session_name);
+      values (v_session_name, v_model_id, v_max_tokens, v_randomness, v_pause);
+   set_session(v_session_name);
 end;
 
 procedure system (
@@ -371,7 +360,7 @@ begin
    dbms_output.put_line('user: '||p_prompt);
    set_session(p_session_name);
 
-   if s.pause > 0 then
+   if fuse.g_session.pause > 0 then
       dbms_lock.sleep(fuse.g_session.pause);
    end if;
 
@@ -399,7 +388,7 @@ begin
    commit;
 
    -- Together
-   if provider.provider_name = 'together.ai' then
+   if fuse.g_provider.provider_name = 'together.ai' then
       select trim(data_value) into fuse.response from json_data 
        where json_key = 'fuse_make_api_request_'||v.session_prompt_id and json_path = 'root.choices.1.message.content';
       select to_number(data_value) into v.total_tokens from json_data 
@@ -505,9 +494,11 @@ procedure replay (
    select * from ai_session_prompt 
     where session_id = p_session_id
     order by session_prompt_id;
+   v_replay_session_id ai_session.session_id%type;
 begin
+   select max(session_id) into v_replay_session_id from ai_session where session_name = p_session_name;
    create_session(p_session_name);
-   for p in prompts(get_last_session_id (p_session_name)) loop
+   for p in prompts(v_replay_session_id) loop
       if p.prompt_role = 'system' then
          system(p.prompt);
       elsif p.prompt_role = 'user' then

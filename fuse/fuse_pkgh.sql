@@ -8,6 +8,7 @@ create or replace package fuse as
    g_provider ai_provider%rowtype;
    g_model ai_model%rowtype;
    g_session ai_session%rowtype;
+   g_default_model_name ai_model.model_name%type := 'codellama/CodeLlama-7b-Instruct-hf';
 
    -- Stores the last session used.
    g_last_session ai_session%rowtype;

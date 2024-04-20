@@ -365,7 +365,6 @@ begin
 end;
 /
 
-
 -- drop procedure fix_identity_sequences;
 create or replace procedure fix_identity_sequences is 
    cursor c_identify_sequences is 
@@ -1260,4 +1259,3 @@ end;
 /
 
 -- select * from table(sql_to_csv_pipe('select sql_id, elapsed_seconds from sql_log where datetime > sysdate-2/24'));
-
