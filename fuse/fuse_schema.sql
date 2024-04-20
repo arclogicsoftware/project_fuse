@@ -1,7 +1,3 @@
-
-@fuse_config.sql
-
-
 exec drop_table('ai_provider');
 begin
    if not does_table_exist('ai_provider') then 

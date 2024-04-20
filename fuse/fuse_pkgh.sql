@@ -25,22 +25,22 @@ create or replace package fuse as
 
    procedure system (
       p_prompt in varchar2,
-      p_session_name in varchar2 default null,
+      p_session_name in varchar2 default fuse.g_session.session_name,
       p_exclude in number default 0);
 
    procedure assistant (
       p_prompt in varchar2,
-      p_session_name in varchar2 default null,
+      p_session_name in varchar2 default fuse.g_session.session_name,
       p_exclude in number default 0);
 
    procedure mock (
       p_prompt in varchar2,
-      p_session_name in varchar2 default null,
+      p_session_name in varchar2 default fuse.g_session.session_name,
       p_exclude in number default 0);
 
    procedure user (
       p_prompt in varchar2,
-      p_session_name in varchar2 default null,
+      p_session_name in varchar2 default fuse.g_session.session_name,
       p_response_id in varchar2 default null,
       p_schema in clob default null,
       p_exclude in number default 0,
@@ -49,7 +49,7 @@ create or replace package fuse as
    procedure tool (
       p_prompt in varchar2,
       p_function_name in varchar2,
-      p_session_name in varchar2 default null,
+      p_session_name in varchar2 default fuse.g_session.session_name,
       p_response_id in varchar2 default null,
       p_exclude in number default 0);
 

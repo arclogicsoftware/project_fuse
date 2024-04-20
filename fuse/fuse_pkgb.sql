@@ -292,7 +292,7 @@ procedure create_session (
    v_max_tokens ai_session.max_tokens%type := 1024;
    v_randomness ai_session.randomness%type := 1;
    v_pause ai_session.pause%type := 0;
-   v_session_name ai_session.session_name%type;
+   v_session_name ai_session.session_name%type := p_session_name;
    v_model_id ai_model.model_id%type;
 begin
    -- select p_session_name||'_'||sys_context('userenv', 'sessionid') info v_session_name from dual;
@@ -309,14 +309,14 @@ begin
       v_pause := fuse.g_session.pause;
    end if;
    select model_id into v_model_id from ai_model where model_name = v_model_name;
-   insert into ai_session (session_name, model_id, max_tokens, randomness, pause) 
-      values (v_session_name, v_model_id, v_max_tokens, v_randomness, v_pause);
+   insert into ai_session (session_name, model_id, max_tokens, randomness, pause, status) 
+      values (v_session_name, v_model_id, v_max_tokens, v_randomness, v_pause, 'active');
    set_session(v_session_name);
 end;
 
 procedure system (
    p_prompt in varchar2,
-   p_session_name in varchar2 default null,
+   p_session_name in varchar2 default fuse.g_session.session_name,
    p_exclude in number default 0) is
 begin
    set_session(p_session_name);
@@ -327,7 +327,7 @@ end;
 
 procedure assistant (
    p_prompt in varchar2,
-   p_session_name in varchar2 default null,
+   p_session_name in varchar2 default fuse.g_session.session_name,
    p_exclude in number default 0) is
 begin
    set_session(p_session_name);
@@ -338,7 +338,7 @@ end;
 
 procedure mock (
    p_prompt in varchar2,
-   p_session_name in varchar2 default null,
+   p_session_name in varchar2 default fuse.g_session.session_name,
    p_exclude in number default 0) is
 begin
    set_session(p_session_name);
@@ -349,7 +349,7 @@ end;
 
 procedure user (
    p_prompt in varchar2,
-   p_session_name in varchar2 default null,
+   p_session_name in varchar2 default fuse.g_session.session_name,
    p_response_id in varchar2 default null,
    p_schema in clob default null,
    p_exclude in number default 0,
@@ -426,7 +426,7 @@ end;
 procedure tool (
    p_prompt in varchar2,
    p_function_name in varchar2,
-   p_session_name in varchar2 default null,
+   p_session_name in varchar2 default fuse.g_session.session_name,
    p_response_id in varchar2 default null,
    p_exclude in number default 0) is
    v ai_session_prompt%rowtype;
