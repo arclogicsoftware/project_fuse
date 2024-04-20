@@ -1,11 +1,8 @@
-
-
-
 ## Fuse
 
-Fuse is primarily a AI API focused project but I have included it within the latest version of Oracle monitoring, development, and automation tooling that I use, so there is a lot more here than just eh "fuse" AI API package. Most of the development will be focused on "fuse" package but I will be sharing details on how to use the other capabilities as well.
+Fuse is primarily an Oracle PL/SQL AI API focused project. However, I have integrated the latest version of Oracle monitoring, development, and automation tooling that I use. While most of the development will revolve around AI, I will also provide details and improvements to the other tools in this project.
 
-This project supercedes any work I have done on "K2" and if I get back to more APEX development I will likely migrate some of the things I used/learned from "K2" to "Fuse".
+This project supersedes any previous work I have undertaken on "K2". If/when I return to APEX development, I may migrate some of the techniques and knowledge gained from "K2" to "Fuse".
 
 ## Install
 
@@ -14,7 +11,8 @@ This project supercedes any work I have done on "K2" and if I get back to more A
    * Make sure you modify the user name at the top of the script.
    * Expect a lot of errors. This script trys to grant privs in a number of different ways to support the most environment types possible.
 3. Log on as the new user.
-4. Run ./app_install.sql
+4. Rename or copy ./fuse/fuse_config.sql to ./fuse/fuse_config.secret and put your secret API tokens in it.
+5. Run ./app_install.sql
 
 Note:
    * This will create a bunch of scheduled jobs. Most of these should only be running once within a DB. If you install in multiple accounts you will get a lot of redundant jobs so they should be removed or disabled. I will fix this eventually.
