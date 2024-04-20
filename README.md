@@ -13,6 +13,7 @@ This project supersedes any previous work I have undertaken on "K2". If/when I r
 3. Log on as the new user.
 4. Rename or copy ./fuse/fuse_config.sql to ./fuse/fuse_config.secret and put your secret API tokens in it.
 5. Run ./app_install.sql
+6. The ./fuse folder will contain one or more test files which you can use as examples.
 
 Note:
    * This will create a bunch of scheduled jobs. Most of these should only be running once within a DB. If you install in multiple accounts you will get a lot of redundant jobs so they should be removed or disabled. I will fix this eventually.
