@@ -14,6 +14,7 @@ begin
       p_http_method => 'POST',
       p_body        => p_data);
 
+   -- Log headers if verbose=true
    if app_api.verbose then
       for i in 1.. apex_web_service.g_headers.count loop
          v_header_name := apex_web_service.g_headers(i).name;
@@ -39,45 +40,6 @@ begin
       p_error_type_path=>'root.error.type',
       p_error_message_path=>'root.error.message');
 
-end;
-
-procedure post_anthropic_request (
-   p_request_id in varchar2,
-   p_api_token in varchar2,
-   p_url in varchar2,
-   p_data in clob) is 
-begin
-   debug('post_anthropic_request: '||p_api_token);
-   debug('post_anthropic_request: '||p_data);
-   apex_web_service.g_request_headers.delete();
-   apex_web_service.g_request_headers(1).name := 'x-api-key';
-   apex_web_service.g_request_headers(1).value := p_api_token; 
-   apex_web_service.g_request_headers(2).name := 'anthropic-version';
-   apex_web_service.g_request_headers(2).value := '2023-06-01'; 
-   apex_web_service.g_request_headers(3).name := 'Content-Type';
-   apex_web_service.g_request_headers(3).value := 'application/json'; 
-   post_request_all (
-      p_request_id=>p_request_id,
-      p_url=>p_url,
-      p_data=>p_data);
-end;
-
-procedure post_together_request (
-   p_request_id in varchar2,
-   p_api_token in varchar2,
-   p_url in varchar2,
-   p_data in clob) is 
-begin
-   debug('post_request: '||p_api_token);
-   apex_web_service.g_request_headers.delete();
-   apex_web_service.g_request_headers(1).name := 'Authorization';
-   apex_web_service.g_request_headers(1).value := 'Bearer '||p_api_token; 
-   apex_web_service.g_request_headers(2).name := 'Content-Type';
-   apex_web_service.g_request_headers(2).value := 'application/json'; 
-   post_request_all (
-      p_request_id=>p_request_id,
-      p_url=>p_url,
-      p_data=>p_data);
 end;
 
 function get_provider (
@@ -206,10 +168,7 @@ end;
 
 procedure make_api_request (
    p_session_prompt_id in varchar2) is
-   provider ai_provider%rowtype;
    p ai_session_prompt%rowtype;
-   s ai_session%rowtype;
-   m ai_model%rowtype;
    data_json clob;
    cursor prompts (p_session_id number) is
       select * from ai_session_prompt
@@ -219,15 +178,12 @@ begin
    debug('make_api_request: '||p_session_prompt_id);
 
    p := get_ai_session_prompt(p_session_prompt_id);
-   s := get_session(p.session_id);
-   m := get_model(s.model_id);
-   provider := get_provider(m.provider_id);
 
    apex_json.initialize_clob_output;
    apex_json.open_object;
-   apex_json.write('model', m.model_name);
-   apex_json.write('max_tokens', s.max_tokens);
-   -- apex_json.write('temperature', s.randomness);
+   apex_json.write('model', fuse.g_model.model_name);
+   apex_json.write('max_tokens', fuse.g_session.max_tokens);
+   -- apex_json.write('temperature', fuse.g_session.randomness);
    -- apex_json.write('n', 1);
    if p.tools is not null then 
       apex_json.write('tools', p.tools);
@@ -235,7 +191,7 @@ begin
       apex_json.write('tool_choice', 'auto');
    end if;
    apex_json.open_array('messages');
-   for prompt in prompts(s.session_id) loop 
+   for prompt in prompts(fuse.g_session.session_id) loop 
       apex_json.open_object;
       if prompt.prompt_role = 'mock' then 
          apex_json.write('role', 'user');
@@ -251,24 +207,98 @@ begin
    apex_json.close_array;
    apex_json.close_object;
    data_json := apex_json.get_clob_output;
-   -- if fuse.g_schema is not null and m.json_mode = 'Y' then 
+   -- if fuse.g_schema is not null and fuse.g_model.json_mode = 'Y' then 
    --    data_json := rtrim(trim(regexp_replace(data_json, chr(10), '')), '}') || ', "response_format": {"type": "json_object", "schema": '||fuse.g_schema||'}}';
    -- end if;
    debug2(data_json);
 
-   if provider.provider_name = 'together.ai' then
-      post_together_request (
-         p_request_id=>'fuse_make_api_request_'||p_session_prompt_id,
-         p_api_token=>provider.provider_api_key,
-         p_url=>provider.provider_url,
-         p_data=>data_json);
-   else 
-      post_anthropic_request (
-         p_request_id=>'fuse_make_api_request_'||p_session_prompt_id,
-         p_api_token=>provider.provider_api_key,
-         p_url=>provider.provider_url,
-         p_data=>data_json);
+   apex_web_service.g_request_headers.delete();
+   apex_web_service.g_request_headers(1).name := 'Authorization';
+   apex_web_service.g_request_headers(1).value := 'Bearer '||fuse.g_provider.provider_api_key; 
+   apex_web_service.g_request_headers(2).name := 'Content-Type';
+   apex_web_service.g_request_headers(2).value := 'application/json'; 
+   post_request_all (
+      p_request_id=>'fuse_make_api_request_'||p_session_prompt_id,
+      p_url=>fuse.g_provider.provider_url,
+      p_data=>data_json);
+
+exception
+   when others then
+      raise_application_error(-20000, 'make_api_request: '||sqlerrm);
+end;
+
+function get_last_system_prompt (
+   p_session_id in number) return varchar2 is
+   v_prompt varchar2(4000);
+begin
+   select prompt into v_prompt from ai_session_prompt
+    where session_id=p_session_id and prompt_role='system';
+   return v_prompt;
+exception
+   when no_data_found then
+      return null;
+end;
+
+procedure make_anthropic_api_request (
+   p_session_prompt_id in varchar2) is
+   p ai_session_prompt%rowtype;
+   data_json clob;
+   cursor prompts (p_session_id number) is
+      select * from ai_session_prompt
+       where session_id=p_session_id and exclude=0
+         and prompt_role != 'system'
+       order by session_id;
+   v_system_prompt varchar2(4000);
+begin 
+   debug('make_anthropic_api_request: '||p_session_prompt_id);
+   p := get_ai_session_prompt(p_session_prompt_id);
+   apex_json.initialize_clob_output;
+   apex_json.open_object;
+   apex_json.write('model', fuse.g_model.model_name);
+   apex_json.write('max_tokens', fuse.g_session.max_tokens);
+   apex_json.write('temperature', fuse.g_session.randomness);
+   if p.tools is not null then 
+      apex_json.write('tools', p.tools);
+      apex_json.write('name', p.function_name);
+      apex_json.write('tool_choice', 'auto');
    end if;
+   v_system_prompt := get_last_system_prompt(fuse.g_session.session_id);
+   if v_system_prompt is not null then 
+      apex_json.write('system', v_system_prompt);
+   end if;
+   apex_json.open_array('messages');
+   for prompt in prompts(fuse.g_session.session_id) loop 
+      apex_json.open_object;
+      if prompt.prompt_role = 'mock' then 
+         apex_json.write('role', 'user');
+         apex_json.write('content', prompt.prompt);
+      else 
+         apex_json.write('role', prompt.prompt_role);
+         apex_json.write('content', prompt.prompt);
+      end if;
+      if prompt.prompt_role = 'tool' then
+         apex_json.write('name', prompt.function_name);
+      end if;
+      apex_json.close_object;
+   end loop;
+   apex_json.close_array;
+   apex_json.close_object;
+   data_json := apex_json.get_clob_output;
+   -- if fuse.g_schema is not null and fuse.g_model.json_mode = 'Y' then 
+   --    data_json := rtrim(trim(regexp_replace(data_json, chr(10), '')), '}') || ', "response_format": {"type": "json_object", "schema": '||fuse.g_schema||'}}';
+   -- end if;
+   debug2(data_json);
+   apex_web_service.g_request_headers.delete();
+   apex_web_service.g_request_headers(1).name := 'x-api-key';
+   apex_web_service.g_request_headers(1).value := fuse.g_provider.provider_api_key; 
+   apex_web_service.g_request_headers(2).name := 'anthropic-version';
+   apex_web_service.g_request_headers(2).value := '2023-06-01'; 
+   apex_web_service.g_request_headers(3).name := 'Content-Type';
+   apex_web_service.g_request_headers(3).value := 'application/json'; 
+   post_request_all (
+      p_request_id=>'fuse_make_api_request_'||p_session_prompt_id,
+      p_url=>fuse.g_provider.provider_url,
+      p_data=>data_json);
 exception
    when others then
       raise_application_error(-20000, 'make_api_request: '||sqlerrm);
@@ -384,12 +414,16 @@ begin
 
    commit;
 
-   make_api_request(p_session_prompt_id=>v.session_prompt_id);
+   if fuse.g_provider.provider_name = 'anthropic' then
+      make_anthropic_api_request(p_session_prompt_id=>v.session_prompt_id);
+   else
+      make_api_request(p_session_prompt_id=>v.session_prompt_id);
+   end if;
 
    commit;
 
    -- Together
-   if fuse.g_provider.provider_name = 'together.ai' then
+   if fuse.g_provider.provider_name = 'together' then
       select trim(data_value) into fuse.response from json_data 
        where json_key = 'fuse_make_api_request_'||v.session_prompt_id and json_path = 'root.choices.1.message.content';
       select to_number(data_value) into v.total_tokens from json_data 
