@@ -6,6 +6,7 @@ create or replace package fuse as
    last_response_message clob;
    response clob;
    g_provider fuse_provider%rowtype;
+   g_provider_api_key varchar2(512);
    g_model provider_model%rowtype;
    g_session fuse_session%rowtype;
    g_default_model_name provider_model.model_name%type := 'codellama/CodeLlama-7b-Instruct-hf';

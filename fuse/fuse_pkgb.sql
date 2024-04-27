@@ -159,7 +159,7 @@ begin
 
    apex_web_service.g_request_headers.delete();
    apex_web_service.g_request_headers(1).name := 'Authorization';
-   apex_web_service.g_request_headers(1).value := 'Bearer '||fuse.g_provider.provider_api_key; 
+   apex_web_service.g_request_headers(1).value := 'Bearer '||fuse.g_provider_api_key; 
    apex_web_service.g_request_headers(2).name := 'Content-Type';
    apex_web_service.g_request_headers(2).value := 'application/json'; 
    post_request_all (
@@ -235,7 +235,7 @@ begin
    debug2(data_json);
    apex_web_service.g_request_headers.delete();
    apex_web_service.g_request_headers(1).name := 'x-api-key';
-   apex_web_service.g_request_headers(1).value := fuse.g_provider.provider_api_key; 
+   apex_web_service.g_request_headers(1).value := fuse.g_provider_api_key; 
    apex_web_service.g_request_headers(2).name := 'anthropic-version';
    apex_web_service.g_request_headers(2).value := '2023-06-01'; 
    apex_web_service.g_request_headers(3).name := 'Content-Type';
@@ -255,6 +255,15 @@ begin
    select * into fuse.g_session from fuse_session where session_name = p_session_name and status='active';
    select * into fuse.g_model from provider_model where model_id=fuse.g_session.model_id;
    select * into fuse.g_provider from fuse_provider where provider_id=fuse.g_model.provider_id;
+   if fuse.g_provider.provider_name = 'anthropic' then
+      fuse.g_provider_api_key := fuse_config.anthropic_api_key;
+   elsif fuse.g_provider.provider_name = 'openai' then
+      fuse.g_provider_api_key := fuse_config.openai_api_key;
+   elsif fuse.g_provider.provider_name = 'together' then
+      fuse.g_provider_api_key := fuse_config.together_api_key;
+   else
+      raise_application_error(-20000, 'set_session: Provider key not found - '||fuse.g_provider.provider_name);
+   end if;
 end;
 
 procedure create_session (
