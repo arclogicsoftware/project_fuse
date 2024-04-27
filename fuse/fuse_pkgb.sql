@@ -43,10 +43,10 @@ begin
 end;
 
 function get_provider (
-   p_provider_id in number) return ai_provider%rowtype is
-   v_provider ai_provider%rowtype;
+   p_provider_id in number) return fuse_provider%rowtype is
+   v_provider fuse_provider%rowtype;
 begin
-   select * into v_provider from ai_provider where provider_id = p_provider_id;
+   select * into v_provider from fuse_provider where provider_id = p_provider_id;
    return v_provider;
 exception
    when no_data_found then
@@ -54,11 +54,11 @@ exception
 end;
 
 function get_model (
-   p_model_name in varchar2) return ai_model%rowtype is
-   v_model ai_model%rowtype;
+   p_model_name in varchar2) return provider_model%rowtype is
+   v_model provider_model%rowtype;
 begin
    debug('get_model: '||p_model_name);
-   select * into v_model from ai_model where model_name = p_model_name;
+   select * into v_model from provider_model where model_name = p_model_name;
    return v_model;
 exception
    when no_data_found then
@@ -66,11 +66,11 @@ exception
 end;
 
 function get_model (
-   p_model_id in number) return ai_model%rowtype is
-   v_model ai_model%rowtype;
+   p_model_id in number) return provider_model%rowtype is
+   v_model provider_model%rowtype;
 begin
    debug('get_model: '||p_model_id);
-   select * into v_model from ai_model where model_id = p_model_id;
+   select * into v_model from provider_model where model_id = p_model_id;
    return v_model;
 exception
    when no_data_found then
@@ -78,11 +78,11 @@ exception
 end;
 
 function get_session (
-   p_session_name in varchar2) return ai_session%rowtype is
-   v_session ai_session%rowtype;
+   p_session_name in varchar2) return fuse_session%rowtype is
+   v_session fuse_session%rowtype;
 begin
    debug('get_session: '||p_session_name);
-   select * into v_session from ai_session where session_name = nvl(p_session_name, fuse.g_session.session_name) and status='active';
+   select * into v_session from fuse_session where session_name = nvl(p_session_name, fuse.g_session.session_name) and status='active';
    return v_session;
 exception
    when no_data_found then
@@ -90,21 +90,21 @@ exception
 end;
 
 function get_session (
-   p_session_id in number) return ai_session%rowtype is
-   v_session ai_session%rowtype;
+   p_session_id in number) return fuse_session%rowtype is
+   v_session fuse_session%rowtype;
 begin
-   select * into v_session from ai_session where session_id = p_session_id;
+   select * into v_session from fuse_session where session_id = p_session_id;
    return v_session;
 exception
    when no_data_found then
       raise_application_error(-20000, 'Session not found: '||p_session_id);
 end;
 
-function get_ai_session_prompt (
-   p_session_prompt_id in number) return ai_session_prompt%rowtype is
-   v ai_session_prompt%rowtype;
+function get_session_prompt (
+   p_session_prompt_id in number) return session_prompt%rowtype is
+   v session_prompt%rowtype;
 begin
-   select * into v from ai_session_prompt where session_prompt_id = p_session_prompt_id;
+   select * into v from session_prompt where session_prompt_id = p_session_prompt_id;
    return v;
 exception
    when no_data_found then
@@ -115,16 +115,16 @@ end;
 --    p_session_prompt_id in number default null) return clob is
 --    data_json clob;
 --    cursor prompts (p_session_id number) is
---    select * from ai_session_prompt
+--    select * from session_prompt
 --     where session_id=p_session_id
 --       and exclude=0
 --     order by session_id;
---    p ai_session_prompt%rowtype;
---    s ai_session%rowtype;
---    m ai_model%rowtype;
+--    p session_prompt%rowtype;
+--    s fuse_session%rowtype;
+--    m provider_model%rowtype;
 -- begin
 --    debug('get_request_data: '||p_session_prompt_id);
---    p := get_ai_session_prompt(p_session_prompt_id);
+--    p := get_session_prompt(p_session_prompt_id);
 --    s := get_session(p.session_id);
 --    m := get_model(s.model_id);
 
@@ -168,16 +168,16 @@ end;
 
 procedure make_api_request (
    p_session_prompt_id in varchar2) is
-   p ai_session_prompt%rowtype;
+   p session_prompt%rowtype;
    data_json clob;
    cursor prompts (p_session_id number) is
-      select * from ai_session_prompt
+      select * from session_prompt
        where session_id=p_session_id and exclude=0
        order by session_id;
 begin 
    debug('make_api_request: '||p_session_prompt_id);
 
-   p := get_ai_session_prompt(p_session_prompt_id);
+   p := get_session_prompt(p_session_prompt_id);
 
    apex_json.initialize_clob_output;
    apex_json.open_object;
@@ -231,7 +231,7 @@ function get_last_system_prompt (
    p_session_id in number) return varchar2 is
    v_prompt varchar2(4000);
 begin
-   select prompt into v_prompt from ai_session_prompt
+   select prompt into v_prompt from session_prompt
     where session_id=p_session_id and prompt_role='system';
    return v_prompt;
 exception
@@ -241,17 +241,17 @@ end;
 
 procedure make_anthropic_api_request (
    p_session_prompt_id in varchar2) is
-   p ai_session_prompt%rowtype;
+   p session_prompt%rowtype;
    data_json clob;
    cursor prompts (p_session_id number) is
-      select * from ai_session_prompt
+      select * from session_prompt
        where session_id=p_session_id and exclude=0
          and prompt_role != 'system'
        order by session_id;
    v_system_prompt varchar2(4000);
 begin 
    debug('make_anthropic_api_request: '||p_session_prompt_id);
-   p := get_ai_session_prompt(p_session_prompt_id);
+   p := get_session_prompt(p_session_prompt_id);
    apex_json.initialize_clob_output;
    apex_json.open_object;
    apex_json.write('model', fuse.g_model.model_name);
@@ -307,9 +307,9 @@ end;
 procedure set_session (
    p_session_name in varchar2) is 
 begin
-   select * into fuse.g_session from ai_session where session_name = p_session_name and status='active';
-   select * into fuse.g_model from ai_model where model_id=fuse.g_session.model_id;
-   select * into fuse.g_provider from ai_provider where provider_id=fuse.g_model.provider_id;
+   select * into fuse.g_session from fuse_session where session_name = p_session_name and status='active';
+   select * into fuse.g_model from provider_model where model_id=fuse.g_session.model_id;
+   select * into fuse.g_provider from fuse_provider where provider_id=fuse.g_model.provider_id;
 end;
 
 procedure create_session (
@@ -318,28 +318,28 @@ procedure create_session (
    p_max_tokens in number default null,
    p_randomness in number default null,
    p_pause in number default null) is 
-   v_model_name ai_model.model_name%type := nvl(p_model_name, fuse.g_default_model_name);
-   v_max_tokens ai_session.max_tokens%type := 1024;
-   v_randomness ai_session.randomness%type := 1;
-   v_pause ai_session.pause%type := 0;
-   v_session_name ai_session.session_name%type := p_session_name;
-   v_model_id ai_model.model_id%type;
+   v_model_name provider_model.model_name%type := nvl(p_model_name, fuse.g_default_model_name);
+   v_max_tokens fuse_session.max_tokens%type := 1024;
+   v_randomness fuse_session.randomness%type := 1;
+   v_pause fuse_session.pause%type := 0;
+   v_session_name fuse_session.session_name%type := p_session_name;
+   v_model_id provider_model.model_id%type;
 begin
    -- select p_session_name||'_'||sys_context('userenv', 'sessionid') info v_session_name from dual;
    debug('create_session: '||p_session_name);
-   update ai_session set status = 'inactive' where status = 'active' and session_name = v_session_name;
+   update fuse_session set status = 'inactive' where status = 'active' and session_name = v_session_name;
 
    -- When the only parameter provided is the session_name...
    if p_model_name is null and p_max_tokens is null and p_randomness is null and p_pause is null then 
-      -- We will borrow the attributes from the last ai_session created.
+      -- We will borrow the attributes from the last fuse_session created.
       set_session(v_session_name);
       v_model_name := fuse.g_model.model_name;
       v_max_tokens := fuse.g_session.max_tokens;
       v_randomness := fuse.g_session.randomness;
       v_pause := fuse.g_session.pause;
    end if;
-   select model_id into v_model_id from ai_model where model_name = v_model_name;
-   insert into ai_session (session_name, model_id, max_tokens, randomness, pause, status) 
+   select model_id into v_model_id from provider_model where model_name = v_model_name;
+   insert into fuse_session (session_name, model_id, max_tokens, randomness, pause, status) 
       values (v_session_name, v_model_id, v_max_tokens, v_randomness, v_pause, 'active');
    set_session(v_session_name);
 end;
@@ -350,7 +350,7 @@ procedure system (
    p_exclude in number default 0) is
 begin
    set_session(p_session_name);
-   insert into ai_session_prompt (session_id, prompt_role, prompt, exclude, end_time) 
+   insert into session_prompt (session_id, prompt_role, prompt, exclude, end_time) 
       values (fuse.g_session.session_id, 'system', p_prompt, p_exclude, systimestamp);
    dbms_output.put_line('system: '||p_prompt);
 end;
@@ -362,7 +362,7 @@ procedure assistant (
 begin
    debug('assistant: '||p_prompt);
    set_session(p_session_name);
-   insert into ai_session_prompt (session_id, prompt_role, prompt, exclude, end_time) 
+   insert into session_prompt (session_id, prompt_role, prompt, exclude, end_time) 
       values (fuse.g_session.session_id, 'assistant', p_prompt, p_exclude, systimestamp);
    dbms_output.put_line('assistant: '||p_prompt);
 end;
@@ -373,7 +373,7 @@ procedure mock (
    p_exclude in number default 0) is
 begin
    set_session(p_session_name);
-   insert into ai_session_prompt (session_id, prompt_role, prompt, exclude, end_time) 
+   insert into session_prompt (session_id, prompt_role, prompt, exclude, end_time) 
       values (fuse.g_session.session_id, 'mock', p_prompt, p_exclude, systimestamp);
    dbms_output.put_line('mock: '||p_prompt);
 end;
@@ -385,7 +385,7 @@ procedure user (
    p_schema in clob default null,
    p_exclude in number default 0,
    p_tools in clob default null) is
-   v ai_session_prompt%rowtype;
+   v session_prompt%rowtype;
 begin
    debug('user: ');
    dbms_output.put_line('user: '||p_prompt);
@@ -395,7 +395,7 @@ begin
       dbms_lock.sleep(fuse.g_session.pause);
    end if;
 
-   insert into ai_session_prompt (
+   insert into session_prompt (
       session_id, 
       prompt_role, 
       prompt, 
@@ -440,17 +440,16 @@ begin
        where json_key = 'fuse_make_api_request_'||v.session_prompt_id and json_path = 'root.stop_reason';
    end if;
 
-   update ai_session_prompt 
-      set response = fuse.response,
-          total_tokens = v.total_tokens,
+   update session_prompt 
+      set total_tokens = v.total_tokens,
           finish_reason = v.finish_reason,
           end_time = systimestamp,
           elapsed_seconds = secs_between_timestamps(start_time, systimestamp)
     where session_prompt_id = v.session_prompt_id;
 
-   update ai_session 
+   update fuse_session 
       set total_tokens = total_tokens + v.total_tokens,
-          elapsed_seconds = (select sum(elapsed_seconds) from ai_session_prompt where session_id = fuse.g_session.session_id),
+          elapsed_seconds = (select sum(elapsed_seconds) from session_prompt where session_id = fuse.g_session.session_id),
           call_count = call_count + 1
     where session_id = fuse.g_session.session_id;
 
@@ -464,7 +463,7 @@ procedure tool (
    p_session_name in varchar2 default fuse.g_session.session_name,
    p_response_id in varchar2 default null,
    p_exclude in number default 0) is
-   v ai_session_prompt%rowtype;
+   v session_prompt%rowtype;
 begin
    debug('tool: ');
    dbms_output.put_line('tool: '||p_prompt);
@@ -474,7 +473,7 @@ begin
       dbms_lock.sleep(fuse.g_session.pause);
    end if;
 
-   insert into ai_session_prompt (
+   insert into session_prompt (
       session_id, 
       prompt_role, 
       prompt, 
@@ -504,17 +503,16 @@ begin
    select data_value into v.finish_reason from json_data 
     where json_key = 'fuse_make_api_request_'||v.session_prompt_id and json_path = 'root.choices.1.finish_reason';
 
-   update ai_session_prompt 
-      set response = fuse.response,
-          total_tokens = v.total_tokens,
+   update session_prompt 
+      set total_tokens = v.total_tokens,
           finish_reason = v.finish_reason,
           end_time = systimestamp,
           elapsed_seconds = secs_between_timestamps(start_time, systimestamp)
     where session_prompt_id = v.session_prompt_id;
 
-   update ai_session 
+   update fuse_session 
       set total_tokens = total_tokens + v.total_tokens,
-          elapsed_seconds = (select sum(elapsed_seconds) from ai_session_prompt where session_id = fuse.g_session.session_id),
+          elapsed_seconds = (select sum(elapsed_seconds) from session_prompt where session_id = fuse.g_session.session_id),
           call_count = call_count + 1
     where session_id = fuse.g_session.session_id;
 
@@ -526,12 +524,12 @@ procedure replay (
    p_session_name in varchar2 default null) is
    v_session_id number;
    cursor prompts (p_session_id in number) is
-   select * from ai_session_prompt 
+   select * from session_prompt 
     where session_id = p_session_id
     order by session_prompt_id;
-   v_replay_session_id ai_session.session_id%type;
+   v_replay_session_id fuse_session.session_id%type;
 begin
-   select max(session_id) into v_replay_session_id from ai_session where session_name = p_session_name;
+   select max(session_id) into v_replay_session_id from fuse_session where session_name = p_session_name;
    create_session(p_session_name);
    for p in prompts(v_replay_session_id) loop
       if p.prompt_role = 'system' then
@@ -547,9 +545,9 @@ end;
 
 function get_response (
    p_response_id in varchar2) return varchar2 is
-   r ai_session_prompt.response%type;
+   r session_prompt.prompt%type;
 begin
-   select response into r from ai_session_prompt where response_id = p_response_id;
+   select prompt into r from session_prompt where response_id = p_response_id;
    return r;
 end;
 

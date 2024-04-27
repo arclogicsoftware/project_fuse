@@ -3,3 +3,4 @@
 app/app_customer.sql
 secret*
 *.secret
+fuse/bar.sql

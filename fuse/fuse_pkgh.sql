@@ -5,13 +5,13 @@ create or replace package fuse as
    last_status_code number;
    last_response_message clob;
    response clob;
-   g_provider ai_provider%rowtype;
-   g_model ai_model%rowtype;
-   g_session ai_session%rowtype;
-   g_default_model_name ai_model.model_name%type := 'codellama/CodeLlama-7b-Instruct-hf';
+   g_provider fuse_provider%rowtype;
+   g_model provider_model%rowtype;
+   g_session fuse_session%rowtype;
+   g_default_model_name provider_model.model_name%type := 'codellama/CodeLlama-7b-Instruct-hf';
 
    -- Stores the last session used.
-   g_last_session ai_session%rowtype;
+   g_last_session fuse_session%rowtype;
 
    procedure set_session (
       p_session_name in varchar2);
