@@ -16,4 +16,11 @@ This project supersedes any previous work I have undertaken on "K2". If/when I r
 6. The ./fuse folder will contain one or more test files which you can use as examples.
 
 Note:
-   * This will create a bunch of scheduled jobs. Most of these should only be running once within a DB. If you install in multiple accounts you will get a lot of redundant jobs so they should be removed or disabled. I will fix this eventually.
+   * This will create a number of scheduled jobs. Most of these should only be running once within a DB. If you install in multiple accounts you will get a lot of redundant jobs so they should be removed or disabled. I will fix this eventually.
+
+## Supported Providers
+
+1. [OpenAI](https://platform.openai.com/docs/introduction)
+2. [Together](https://docs.together.ai/docs/quickstart)
+3. [Anthropic](https://docs.anthropic.com/claude/reference/getting-started-with-the-api)
+

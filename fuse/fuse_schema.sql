@@ -20,6 +20,7 @@ end;
 begin
    insert into fuse_provider (provider_name, provider_url, provider_api_key) values ('together', 'https://api.together.xyz/v1/chat/completions', fuse_config.together_api_key);
    insert into fuse_provider (provider_name, provider_url, provider_api_key) values ('anthropic', 'https://api.anthropic.com/v1/messages', fuse_config.anthropic_api_key);
+   insert into fuse_provider (provider_name, provider_url, provider_api_key) values ('openai', 'https://api.openai.com/v1/chat/completions', fuse_config.openai_api_key);
 end;
 /
 
@@ -66,21 +67,27 @@ begin
 end;
 /
 
--- together.ai
+
+-- together.ai Models
 exec add_model('codellama/CodeLlama-7b-Instruct-hf', 'Chat', 'together', 16384);
 exec add_model('codellama/CodeLlama-34b-Instruct-hf', 'Chat', 'together', 16384);
 exec add_model('mistralai/Mistral-7B-Instruct-v0.2', 'Chat', 'together', 32768);
 exec add_model('google/gemma-7b-it', 'Chat', 'together', 8192);
 exec add_model('databricks/dbrx-instruct', 'Chat', 'together', 32768);
--- Supports function calling and json_mode.
+-- These models support function calling and json_mode.
 exec add_model('togethercomputer/CodeLlama-34b-Instruct', 'Chat', 'together', 16384);
 exec add_model('mistralai/Mistral-7B-Instruct-v0.1', 'Chat', 'together', 8192);
 exec add_model('mistralai/Mixtral-8x7B-Instruct-v0.1', 'Chat', 'together', 0);
 
--- anthropic.ai
+
+-- anthropic.ai Models
 exec add_model('claude-3-opus-20240229', 'Chat', 'anthropic', 200000);
 exec add_model('claude-3-sonnet-20240229', 'Chat', 'anthropic', 200000);
 exec add_model('claude-3-haiku-20240307', 'Chat', 'anthropic', 200000);
+
+
+-- open.ai
+exec add_model('gpt-3.5-turbo-0125', 'Chat', 'openai', 16385);
 
 
 -- As of Apr 2024 together supports JSON mode for the following models.

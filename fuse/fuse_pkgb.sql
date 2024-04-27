@@ -111,61 +111,6 @@ exception
       raise_application_error(-20000, 'Session prompt not found: '||p_session_prompt_id);
 end;
 
--- function get_request_data (
---    p_session_prompt_id in number default null) return clob is
---    data_json clob;
---    cursor prompts (p_session_id number) is
---    select * from session_prompt
---     where session_id=p_session_id
---       and exclude=0
---     order by session_id;
---    p session_prompt%rowtype;
---    s fuse_session%rowtype;
---    m provider_model%rowtype;
--- begin
---    debug('get_request_data: '||p_session_prompt_id);
---    p := get_session_prompt(p_session_prompt_id);
---    s := get_session(p.session_id);
---    m := get_model(s.model_id);
-
---    -- s : = '{model: "'||model_name||'", max_tokens: '||p_max_tokens||', temperature: '||p_randomness||', n: 1';
---    -- if p_schema is not null then 
---    --    s := s||', response_format: {type: "json_object", schema: '||p_schema||'}';
---    -- end if;
---    -- s := s||', messages: [';
---    -- for m in messages loop 
---    --    s := s||'{role: "'||m.prompt_role||'", content: "'||m.prompt||'"},';
---    -- end loop;
---    -- s := rtrim(s, ',')||']}';
---    -- debug(s);
-
---    apex_json.initialize_clob_output;
---    apex_json.open_object;
---    apex_json.write('model', m.model_name);
---    apex_json.write('max_tokens', s.max_tokens);
---    apex_json.write('temperature', s.randomness);
---    apex_json.write('n', 1);
---    if p.tools is not null then 
---       apex_json.write('tools', p.tools);
---       apex_json.write('tool_choice', 'auto');
---    end if;
---    apex_json.open_array('messages');
---    for prompt in prompts(s.session_id) loop 
---       apex_json.open_object;
---       apex_json.write('role', prompt.prompt_role);
---       apex_json.write('content', prompt.prompt);
---       apex_json.close_object;
---    end loop;
---    apex_json.close_array;
---    apex_json.close_object;
---    data_json := apex_json.get_clob_output;
---    -- if fuse.g_schema is not null and m.json_mode = 'Y' then 
---    --    data_json := rtrim(trim(regexp_replace(data_json, chr(10), '')), '}') || ', "response_format": {"type": "json_object", "schema": '||fuse.g_schema||'}}';
---    -- end if;
---    debug2(data_json);
---    return data_json;
--- end;
-
 procedure make_api_request (
    p_session_prompt_id in varchar2) is
    p session_prompt%rowtype;
@@ -423,7 +368,7 @@ begin
    commit;
 
    -- Together
-   if fuse.g_provider.provider_name = 'together' then
+   if fuse.g_provider.provider_name in ('together', 'openai') then
       select trim(data_value) into fuse.response from json_data 
        where json_key = 'fuse_make_api_request_'||v.session_prompt_id and json_path = 'root.choices.1.message.content';
       select to_number(data_value) into v.total_tokens from json_data 
