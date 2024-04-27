@@ -20,7 +20,7 @@ end;
 
 This project also includes utilities which support development, monitoring, alerting, and automation.
 
-If you want to follow along or contribute, please subscribe to my [YouTube](https://www.youtube.com/channel/UC8cIGO-lRvWM-mPtJdO_9XQ) channel.
+If you want to follow along, please subscribe to my [YouTube](https://www.youtube.com/channel/UC8cIGO-lRvWM-mPtJdO_9XQ) channel.
 
 ## Installation
 
