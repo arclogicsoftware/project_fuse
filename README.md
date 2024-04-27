@@ -5,9 +5,18 @@
 Fuse is an Oracle PL/SQL API that supports multiple AI provider/models. Fuse makes it easy to add robust AI functionality to your databases.
 
 ```sql
-exec fuse.create_session(p_session_name=>'xyz', p_model_name=>'codellama/CodeLlama-7b-Instruct-hf');
-exec fuse.system('You are an Oracle ACE and noted expert instructor.');
-exec fuse.user('Help me create a lesson plan for the next four weeks. I’m teaching high school graduates about Oracle RDMS.');
+begin
+   fuse.create_session(
+      p_session_name=>'xyz', 
+      p_model_name=>'codellama/CodeLlama-7b-Instruct-hf');
+   fuse.system('
+      You are an Oracle ACE and noted expert instructor.');
+   fuse.user('
+      Help me create a lesson plan for the next four weeks. 
+      I’m teaching high school graduates about Oracle RDMS.');
+end;
+/
+
 ```
 
 This project also includes utilities which support development, monitoring, alerting, and automation.
