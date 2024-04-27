@@ -27,6 +27,19 @@ exception
 end;
 /
 
+/*
+Basic image model test.
+*/
+begin
+   fuse.create_session(p_session_name=>'image_test',
+      p_model_name=>'stabilityai/stable-diffusion-2-1');
+   fuse.image(p_prompt=>'A cat in a hat.', p_steps=>20, p_images=>1);
+end;
+/
+
+
+
+
 
 -- begin 
 --    fuse.create_session (
@@ -46,11 +59,12 @@ end;
 -- end;
 -- /
 
--- select * from provider_model;
--- delete from log_table;
--- delete from fuse_session;
--- select * from log_table order by 1 desc;
--- delete from json_data;
--- select * from json_data order by 1 desc;
--- select * from session_prompt order by 1 desc;
--- delete from session_prompt;
+delete from log_table;
+delete from fuse_session;
+delete from json_data;
+ 
+select * from provider_model;
+select * from log_table order by 1 desc;
+select * from json_data order by 1 desc;
+select * from session_prompt order by 1 desc;
+delete from session_prompt;

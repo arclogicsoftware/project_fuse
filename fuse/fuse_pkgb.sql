@@ -164,7 +164,7 @@ begin
    apex_web_service.g_request_headers(2).value := 'application/json'; 
    post_request_all (
       p_request_id=>'fuse_make_api_request_'||p_session_prompt_id,
-      p_url=>fuse.g_provider.provider_url,
+      p_url=>fuse.g_model.api_url,
       p_data=>data_json);
 
 exception
@@ -242,7 +242,7 @@ begin
    apex_web_service.g_request_headers(3).value := 'application/json'; 
    post_request_all (
       p_request_id=>'fuse_make_api_request_'||p_session_prompt_id,
-      p_url=>fuse.g_provider.provider_url,
+      p_url=>fuse.g_model.api_url,
       p_data=>data_json);
 exception
    when others then
@@ -266,36 +266,126 @@ begin
    end if;
 end;
 
-procedure create_session (
-   p_session_name in varchar2,
-   p_model_name in varchar2 default null,
-   p_max_tokens in number default null,
-   p_randomness in number default null,
-   p_pause in number default null) is 
-   v_model_name provider_model.model_name%type := nvl(p_model_name, fuse.g_default_model_name);
+  procedure create_session (
+      p_session_name in varchar2,
+      p_model_name in varchar2,
+      p_max_tokens in number default null,
+      p_randomness in number default null,
+      p_pause in number default null,
+      p_steps in number default null,
+      p_images in number default null) is 
    v_max_tokens fuse_session.max_tokens%type := 1024;
    v_randomness fuse_session.randomness%type := 1;
    v_pause fuse_session.pause%type := 0;
    v_session_name fuse_session.session_name%type := p_session_name;
-   v_model_id provider_model.model_id%type;
+   v_images fuse_session.images%type := nvl(p_images, 1);
+   v_steps fuse_session.steps%type := nvl(p_steps, 20);
 begin
    -- select p_session_name||'_'||sys_context('userenv', 'sessionid') info v_session_name from dual;
    debug('create_session: '||p_session_name);
    update fuse_session set status = 'inactive' where status = 'active' and session_name = v_session_name;
-
-   -- When the only parameter provided is the session_name...
-   if p_model_name is null and p_max_tokens is null and p_randomness is null and p_pause is null then 
-      -- We will borrow the attributes from the last fuse_session created.
-      set_session(v_session_name);
-      v_model_name := fuse.g_model.model_name;
-      v_max_tokens := fuse.g_session.max_tokens;
-      v_randomness := fuse.g_session.randomness;
-      v_pause := fuse.g_session.pause;
-   end if;
-   select model_id into v_model_id from provider_model where model_name = v_model_name;
-   insert into fuse_session (session_name, model_id, max_tokens, randomness, pause, status) 
-      values (v_session_name, v_model_id, v_max_tokens, v_randomness, v_pause, 'active');
+   fuse.g_model := get_model(p_model_name);   
+   insert into fuse_session (session_name, model_id, max_tokens, randomness, pause, status, images, steps) 
+      values (v_session_name, fuse.g_model.model_id, v_max_tokens, v_randomness, v_pause, 'active', v_images, v_steps);
    set_session(v_session_name);
+end;
+
+procedure assert_not_image_model is 
+begin
+   if fuse.g_model.model_type = 'image' then
+      raise_application_error(-20000, 'Image model not supported.');
+   end if;
+end;
+
+procedure assert_is_image_model is 
+begin
+   if fuse.g_model.model_type != 'image' then
+      raise_application_error(-20000, 'Image model required.');
+   end if;
+end;
+
+procedure image (
+   p_prompt in varchar2,
+   p_session_name in varchar2 default fuse.g_session.session_name,
+   p_steps in number default 20,
+   p_images in number default 1) is
+   v_session_image_id session_image.session_image_id%type;
+   data_json clob;
+begin
+   debug('image: '||p_prompt);
+   set_session(p_session_name);
+   assert_is_image_model;
+   if fuse.g_session.pause > 0 then
+      dbms_lock.sleep(fuse.g_session.pause);
+   end if;
+
+   -- insert into session_image (
+   --    session_id, 
+   --    prompt,
+   --    steps,
+   --    image_id) 
+   --    values (
+   --    fuse.g_session.session_id, 
+   --    p_prompt,
+   --    p_steps,
+   --    p_images) returning session_image_id into v_session_image_id;
+
+   -- commit;
+
+   apex_json.initialize_clob_output;
+   apex_json.open_object;
+   apex_json.write('model', fuse.g_model.model_name);
+   apex_json.write('prompt', p_prompt);
+   apex_json.write('n', p_images);
+   apex_json.write('steps', p_steps);
+   apex_json.close_object;
+   data_json := apex_json.get_clob_output;
+   debug2(data_json);
+
+   apex_web_service.g_request_headers.delete();
+   apex_web_service.g_request_headers(1).name := 'Authorization';
+   apex_web_service.g_request_headers(1).value := 'Bearer '||fuse.g_provider_api_key; 
+   apex_web_service.g_request_headers(2).name := 'Content-Type';
+   apex_web_service.g_request_headers(2).value := 'application/json'; 
+   post_request_all (
+      p_request_id=>'fuse_make_api_request_'||'foo',
+      p_url=>fuse.g_model.api_url,
+      p_data=>data_json);
+
+   commit;
+
+   -- -- Together
+   -- if fuse.g_provider.provider_name in ('together', 'openai') then
+   --    select trim(data_value) into fuse.response from json_data 
+   --     where json_key = 'fuse_make_api_request_'||v.session_prompt_id and json_path = 'root.choices.1.message.content';
+   --    select to_number(data_value) into v.total_tokens from json_data 
+   --     where json_key = 'fuse_make_api_request_'||v.session_prompt_id and json_path = 'root.usage.total_tokens';
+   --    select data_value into v.finish_reason from json_data 
+   --     where json_key = 'fuse_make_api_request_'||v.session_prompt_id and json_path = 'root.choices.1.finish_reason';
+   -- else 
+   --    -- Anthropic
+   --    select trim(data_value) into fuse.response from json_data 
+   --     where json_key = 'fuse_make_api_request_'||v.session_prompt_id and json_path = 'root.content.1.text';
+   --    select sum(to_number(data_value)) into v.total_tokens from json_data 
+   --     where json_key = 'fuse_make_api_request_'||v.session_prompt_id and json_path in ('root.usage.input_tokens', 'root.usage.output_tokens');
+   --    select data_value into v.finish_reason from json_data 
+   --     where json_key = 'fuse_make_api_request_'||v.session_prompt_id and json_path = 'root.stop_reason';
+   -- end if;
+
+   -- update session_prompt 
+   --    set total_tokens = v.total_tokens,
+   --        finish_reason = v.finish_reason,
+   --        end_time = systimestamp,
+   --        elapsed_seconds = secs_between_timestamps(start_time, systimestamp)
+   --  where session_prompt_id = v.session_prompt_id;
+
+   -- update fuse_session 
+   --    set total_tokens = total_tokens + v.total_tokens,
+   --        elapsed_seconds = (select sum(elapsed_seconds) from session_prompt where session_id = fuse.g_session.session_id),
+   --        call_count = call_count + 1
+   --  where session_id = fuse.g_session.session_id;
+
+   -- assistant(p_prompt=>fuse.response, p_session_name=>p_session_name, p_exclude=>p_exclude);
 end;
 
 procedure system (
@@ -304,6 +394,7 @@ procedure system (
    p_exclude in number default 0) is
 begin
    set_session(p_session_name);
+   assert_not_image_model;
    insert into session_prompt (session_id, prompt_role, prompt, exclude, end_time) 
       values (fuse.g_session.session_id, 'system', p_prompt, p_exclude, systimestamp);
    dbms_output.put_line('system: '||p_prompt);
@@ -316,6 +407,7 @@ procedure assistant (
 begin
    debug('assistant: '||p_prompt);
    set_session(p_session_name);
+   assert_not_image_model;
    insert into session_prompt (session_id, prompt_role, prompt, exclude, end_time) 
       values (fuse.g_session.session_id, 'assistant', p_prompt, p_exclude, systimestamp);
    dbms_output.put_line('assistant: '||p_prompt);
@@ -327,6 +419,7 @@ procedure mock (
    p_exclude in number default 0) is
 begin
    set_session(p_session_name);
+   assert_not_image_model;
    insert into session_prompt (session_id, prompt_role, prompt, exclude, end_time) 
       values (fuse.g_session.session_id, 'mock', p_prompt, p_exclude, systimestamp);
    dbms_output.put_line('mock: '||p_prompt);
@@ -344,6 +437,7 @@ begin
    debug('user: ');
    dbms_output.put_line('user: '||p_prompt);
    set_session(p_session_name);
+   assert_not_image_model;
 
    if fuse.g_session.pause > 0 then
       dbms_lock.sleep(fuse.g_session.pause);
@@ -422,6 +516,7 @@ begin
    debug('tool: ');
    dbms_output.put_line('tool: '||p_prompt);
    set_session(p_session_name);
+   assert_not_image_model;
 
    if fuse.g_session.pause > 0 then
       dbms_lock.sleep(fuse.g_session.pause);
@@ -474,28 +569,28 @@ begin
 
 end;
 
-procedure replay (
-   p_session_name in varchar2 default null) is
-   v_session_id number;
-   cursor prompts (p_session_id in number) is
-   select * from session_prompt 
-    where session_id = p_session_id
-    order by session_prompt_id;
-   v_replay_session_id fuse_session.session_id%type;
-begin
-   select max(session_id) into v_replay_session_id from fuse_session where session_name = p_session_name;
-   create_session(p_session_name);
-   for p in prompts(v_replay_session_id) loop
-      if p.prompt_role = 'system' then
-         system(p.prompt);
-      elsif p.prompt_role = 'user' then
-         user(p.prompt, p.response_id);
-      elsif p.prompt_role in ('assistant', 'tool') then
-         -- Do nothing
-         null;
-      end if;
-   end loop;
-end;
+-- procedure replay (
+--    p_session_name in varchar2 default null) is
+--    v_session_id number;
+--    cursor prompts (p_session_id in number) is
+--    select * from session_prompt 
+--     where session_id = p_session_id
+--     order by session_prompt_id;
+--    v_replay_session_id fuse_session.session_id%type;
+-- begin
+--    select max(session_id) into v_replay_session_id from fuse_session where session_name = p_session_name;
+--    create_session(p_session_name);
+--    for p in prompts(v_replay_session_id) loop
+--       if p.prompt_role = 'system' then
+--          system(p.prompt);
+--       elsif p.prompt_role = 'user' then
+--          user(p.prompt, p.response_id);
+--       elsif p.prompt_role in ('assistant', 'tool') then
+--          -- Do nothing
+--          null;
+--       end if;
+--    end loop;
+-- end;
 
 function get_response (
    p_response_id in varchar2) return varchar2 is
