@@ -63,7 +63,11 @@ create or replace package fuse as
       p_prompt in varchar2,
       p_session_name in varchar2 default fuse.g_session.session_name,
       p_steps in number default 20,
-      p_images in number default 1);
+      p_images in number default 1,
+      p_width in number default 1024,
+      p_height in number default 1024,
+      p_seed in number default 1,
+      p_negative_prompt in varchar2 default null);
 
 end;
 /

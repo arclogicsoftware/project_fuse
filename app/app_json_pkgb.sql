@@ -94,7 +94,8 @@ begin
             p_data_key=>p_data_key);
       elsif j.get(i).is_string then
          v_data_type := 'string';
-         v_data_value := j.get_string(i);
+         -- Changed from get_string to get_clob to handle larger values like base64 encoded images.
+         v_data_value := j.get_clob(i);
       elsif j.get(i).is_number then
          v_data_type := 'number';
          v_data_value := to_char(j.get_number(i));
@@ -184,7 +185,8 @@ begin
       end if;
       if j.get(k(key)).is_string then
          v_data_type := 'string';
-         v_data_value := j.get_string(k(key));
+         -- Changed from get_string to get_clob to handle much larger values like base64 encoded images.
+         v_data_value := j.get_clob(k(key));
       elsif j.get(k(key)).is_number then
          v_data_type := 'number';
          v_data_value := to_char(j.get_number(k(key)));

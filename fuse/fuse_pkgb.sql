@@ -1,18 +1,30 @@
 create or replace package body fuse as
 
-procedure post_request_all (
+procedure log_response (
+   p_response clob) is 
+   pragma autonomous_transaction;
+begin
+   insert into api_response (response) values (p_response);
+   commit;
+end;
+
+procedure post_api_request (
    p_request_id in varchar2,
    p_url in varchar2,
    p_data in clob) is 
    v_header_name varchar2(4000);
    v_header_val varchar2(4000);
 begin
-   debug('post_request_all: '||p_data);
+   debug('post_api_request: '||p_data);
    -- The entire response is stored in response global var. Use with caution of course.
    app_api.response := apex_web_service.make_rest_request (
       p_url         => p_url, 
       p_http_method => 'POST',
       p_body        => p_data);
+
+   -- Do not try to debug log the response. It can be large and will exceed limit of varchar2 and raise error.
+   -- Instead we will write the raw response to a table.
+   log_response(app_api.response);
 
    -- Log headers if verbose=true
    if app_api.verbose then
@@ -27,7 +39,6 @@ begin
    app_api.last_status_code := apex_web_service.g_status_code;
    debug('g_reason_phrase: '||apex_web_service.g_reason_phrase);
    debug('last_status_code: '||app_api.last_status_code);
-   debug('response: '||app_api.response);
 
    -- The response is parsed into individual rows in the json_data table.
    app_json.json_to_data_table (
@@ -155,15 +166,14 @@ begin
    -- if fuse.g_schema is not null and fuse.g_model.json_mode = 'Y' then 
    --    data_json := rtrim(trim(regexp_replace(data_json, chr(10), '')), '}') || ', "response_format": {"type": "json_object", "schema": '||fuse.g_schema||'}}';
    -- end if;
-   debug2(data_json);
 
    apex_web_service.g_request_headers.delete();
    apex_web_service.g_request_headers(1).name := 'Authorization';
    apex_web_service.g_request_headers(1).value := 'Bearer '||fuse.g_provider_api_key; 
    apex_web_service.g_request_headers(2).name := 'Content-Type';
    apex_web_service.g_request_headers(2).value := 'application/json'; 
-   post_request_all (
-      p_request_id=>'fuse_make_api_request_'||p_session_prompt_id,
+   post_api_request (
+      p_request_id=>'fuse_api_request_'||p_session_prompt_id,
       p_url=>fuse.g_model.api_url,
       p_data=>data_json);
 
@@ -232,7 +242,6 @@ begin
    -- if fuse.g_schema is not null and fuse.g_model.json_mode = 'Y' then 
    --    data_json := rtrim(trim(regexp_replace(data_json, chr(10), '')), '}') || ', "response_format": {"type": "json_object", "schema": '||fuse.g_schema||'}}';
    -- end if;
-   debug2(data_json);
    apex_web_service.g_request_headers.delete();
    apex_web_service.g_request_headers(1).name := 'x-api-key';
    apex_web_service.g_request_headers(1).value := fuse.g_provider_api_key; 
@@ -240,13 +249,13 @@ begin
    apex_web_service.g_request_headers(2).value := '2023-06-01'; 
    apex_web_service.g_request_headers(3).name := 'Content-Type';
    apex_web_service.g_request_headers(3).value := 'application/json'; 
-   post_request_all (
-      p_request_id=>'fuse_make_api_request_'||p_session_prompt_id,
+   post_api_request (
+      p_request_id=>'fuse_api_request_'||p_session_prompt_id,
       p_url=>fuse.g_model.api_url,
       p_data=>data_json);
 exception
    when others then
-      raise_application_error(-20000, 'make_api_request: '||sqlerrm);
+      raise_application_error(-20000, 'make_anthropic_api_request: '||sqlerrm);
 end;
 
 procedure set_session (
@@ -278,15 +287,13 @@ end;
    v_randomness fuse_session.randomness%type := 1;
    v_pause fuse_session.pause%type := 0;
    v_session_name fuse_session.session_name%type := p_session_name;
-   v_images fuse_session.images%type := nvl(p_images, 1);
-   v_steps fuse_session.steps%type := nvl(p_steps, 20);
 begin
    -- select p_session_name||'_'||sys_context('userenv', 'sessionid') info v_session_name from dual;
    debug('create_session: '||p_session_name);
    update fuse_session set status = 'inactive' where status = 'active' and session_name = v_session_name;
    fuse.g_model := get_model(p_model_name);   
-   insert into fuse_session (session_name, model_id, max_tokens, randomness, pause, status, images, steps) 
-      values (v_session_name, fuse.g_model.model_id, v_max_tokens, v_randomness, v_pause, 'active', v_images, v_steps);
+   insert into fuse_session (session_name, model_id, max_tokens, randomness, pause, status) 
+      values (v_session_name, fuse.g_model.model_id, v_max_tokens, v_randomness, v_pause, 'active');
    set_session(v_session_name);
 end;
 
@@ -307,30 +314,26 @@ end;
 procedure image (
    p_prompt in varchar2,
    p_session_name in varchar2 default fuse.g_session.session_name,
+   -- 
    p_steps in number default 20,
-   p_images in number default 1) is
-   v_session_image_id session_image.session_image_id%type;
+   -- Number of images to return.
+   p_images in number default 1,
+   p_width in number default 1024,
+   p_height in number default 1024,
+   p_seed in number default 1,
+   p_negative_prompt in varchar2 default null) is
    data_json clob;
+   cursor images (p_json_key in varchar2) is 
+      select * from json_data where json_key=p_json_key and data_key='image_base64' order by json_data_id;
+   v_image_index number := 0;
+   v_json_key json_data.json_key%type := 'fuse_image_request_'||p_session_name;
 begin
    debug('image: '||p_prompt);
    set_session(p_session_name);
    assert_is_image_model;
    if fuse.g_session.pause > 0 then
       dbms_lock.sleep(fuse.g_session.pause);
-   end if;
-
-   -- insert into session_image (
-   --    session_id, 
-   --    prompt,
-   --    steps,
-   --    image_id) 
-   --    values (
-   --    fuse.g_session.session_id, 
-   --    p_prompt,
-   --    p_steps,
-   --    p_images) returning session_image_id into v_session_image_id;
-
-   -- commit;
+   end if; 
 
    apex_json.initialize_clob_output;
    apex_json.open_object;
@@ -338,54 +341,44 @@ begin
    apex_json.write('prompt', p_prompt);
    apex_json.write('n', p_images);
    apex_json.write('steps', p_steps);
+   apex_json.write('width', p_width);
+   apex_json.write('height', p_height);
+   apex_json.write('seed', p_seed);
+   if p_negative_prompt is not null then 
+      apex_json.write('negative_prompt', p_negative_prompt);
+   end if;
    apex_json.close_object;
    data_json := apex_json.get_clob_output;
-   debug2(data_json);
 
    apex_web_service.g_request_headers.delete();
    apex_web_service.g_request_headers(1).name := 'Authorization';
    apex_web_service.g_request_headers(1).value := 'Bearer '||fuse.g_provider_api_key; 
    apex_web_service.g_request_headers(2).name := 'Content-Type';
    apex_web_service.g_request_headers(2).value := 'application/json'; 
-   post_request_all (
-      p_request_id=>'fuse_make_api_request_'||'foo',
+   post_api_request (
+      p_request_id=>v_json_key,
       p_url=>fuse.g_model.api_url,
       p_data=>data_json);
 
-   commit;
+   for i in images(v_json_key) loop 
+      v_image_index := v_image_index + 1;
+      insert into session_image (
+         session_id, 
+         prompt,
+         steps,
+         image_id,
+         image_data) 
+         values (
+         fuse.g_session.session_id, 
+         p_prompt,
+         p_steps,
+         v_image_index,
+         -- Credit: Tim Hall, https://oracle-base.com/dba/script?category=miscellaneous&file=base64decode.sql
+         base64decode(i.data_value));
+   end loop;
 
-   -- -- Together
-   -- if fuse.g_provider.provider_name in ('together', 'openai') then
-   --    select trim(data_value) into fuse.response from json_data 
-   --     where json_key = 'fuse_make_api_request_'||v.session_prompt_id and json_path = 'root.choices.1.message.content';
-   --    select to_number(data_value) into v.total_tokens from json_data 
-   --     where json_key = 'fuse_make_api_request_'||v.session_prompt_id and json_path = 'root.usage.total_tokens';
-   --    select data_value into v.finish_reason from json_data 
-   --     where json_key = 'fuse_make_api_request_'||v.session_prompt_id and json_path = 'root.choices.1.finish_reason';
-   -- else 
-   --    -- Anthropic
-   --    select trim(data_value) into fuse.response from json_data 
-   --     where json_key = 'fuse_make_api_request_'||v.session_prompt_id and json_path = 'root.content.1.text';
-   --    select sum(to_number(data_value)) into v.total_tokens from json_data 
-   --     where json_key = 'fuse_make_api_request_'||v.session_prompt_id and json_path in ('root.usage.input_tokens', 'root.usage.output_tokens');
-   --    select data_value into v.finish_reason from json_data 
-   --     where json_key = 'fuse_make_api_request_'||v.session_prompt_id and json_path = 'root.stop_reason';
-   -- end if;
+   -- ToDo: Add session accounting and cost calculation. Not sure how to do the latter.
 
-   -- update session_prompt 
-   --    set total_tokens = v.total_tokens,
-   --        finish_reason = v.finish_reason,
-   --        end_time = systimestamp,
-   --        elapsed_seconds = secs_between_timestamps(start_time, systimestamp)
-   --  where session_prompt_id = v.session_prompt_id;
-
-   -- update fuse_session 
-   --    set total_tokens = total_tokens + v.total_tokens,
-   --        elapsed_seconds = (select sum(elapsed_seconds) from session_prompt where session_id = fuse.g_session.session_id),
-   --        call_count = call_count + 1
-   --  where session_id = fuse.g_session.session_id;
-
-   -- assistant(p_prompt=>fuse.response, p_session_name=>p_session_name, p_exclude=>p_exclude);
 end;
 
 procedure system (
@@ -473,19 +466,19 @@ begin
    -- Together
    if fuse.g_provider.provider_name in ('together', 'openai') then
       select trim(data_value) into fuse.response from json_data 
-       where json_key = 'fuse_make_api_request_'||v.session_prompt_id and json_path = 'root.choices.1.message.content';
+       where json_key = 'fuse_api_request_'||v.session_prompt_id and json_path = 'root.choices.1.message.content';
       select to_number(data_value) into v.total_tokens from json_data 
-       where json_key = 'fuse_make_api_request_'||v.session_prompt_id and json_path = 'root.usage.total_tokens';
+       where json_key = 'fuse_api_request_'||v.session_prompt_id and json_path = 'root.usage.total_tokens';
       select data_value into v.finish_reason from json_data 
-       where json_key = 'fuse_make_api_request_'||v.session_prompt_id and json_path = 'root.choices.1.finish_reason';
+       where json_key = 'fuse_api_request_'||v.session_prompt_id and json_path = 'root.choices.1.finish_reason';
    else 
       -- Anthropic
       select trim(data_value) into fuse.response from json_data 
-       where json_key = 'fuse_make_api_request_'||v.session_prompt_id and json_path = 'root.content.1.text';
+       where json_key = 'fuse_api_request_'||v.session_prompt_id and json_path = 'root.content.1.text';
       select sum(to_number(data_value)) into v.total_tokens from json_data 
-       where json_key = 'fuse_make_api_request_'||v.session_prompt_id and json_path in ('root.usage.input_tokens', 'root.usage.output_tokens');
+       where json_key = 'fuse_api_request_'||v.session_prompt_id and json_path in ('root.usage.input_tokens', 'root.usage.output_tokens');
       select data_value into v.finish_reason from json_data 
-       where json_key = 'fuse_make_api_request_'||v.session_prompt_id and json_path = 'root.stop_reason';
+       where json_key = 'fuse_api_request_'||v.session_prompt_id and json_path = 'root.stop_reason';
    end if;
 
    update session_prompt 
@@ -544,13 +537,13 @@ begin
    commit;
 
    select trim(data_value) into fuse.response from json_data 
-    where json_key = 'fuse_make_api_request_'||v.session_prompt_id and json_path = 'root.choices.1.message.content';
+    where json_key = 'fuse_api_request_'||v.session_prompt_id and json_path = 'root.choices.1.message.content';
 
    select to_number(data_value) into v.total_tokens from json_data 
-    where json_key = 'fuse_make_api_request_'||v.session_prompt_id and json_path = 'root.usage.total_tokens';
+    where json_key = 'fuse_api_request_'||v.session_prompt_id and json_path = 'root.usage.total_tokens';
 
    select data_value into v.finish_reason from json_data 
-    where json_key = 'fuse_make_api_request_'||v.session_prompt_id and json_path = 'root.choices.1.finish_reason';
+    where json_key = 'fuse_api_request_'||v.session_prompt_id and json_path = 'root.choices.1.finish_reason';
 
    update session_prompt 
       set total_tokens = v.total_tokens,

@@ -5,9 +5,9 @@
 Basic test that runs through selected model in the provider_model table and asks a basic question.
 */
 
-declares
+declare
    -- Modify this to test specific models or all models.
-   cursor models is select * from provider_model where model_name='gpt-3.5-turbo-0125';
+   cursor models is select * from provider_model where model_name='gpt-3.5-turbo-0125' and model_type='chat';
    v_model_name provider_model.model_name%type;
 begin
    for m in models loop 
@@ -27,19 +27,26 @@ exception
 end;
 /
 
-/*
+/* 
 Basic image model test.
+- Tested: https://docs.together.ai/docs/examples#image-generation
 */
+
+declare
+   image_prompt clob;
 begin
+   fuse.create_session(p_session_name=>'image_prompt', p_model_name=>'claude-3-haiku-20240307');
+   fuse.user(p_prompt=>'Generate a short interesting prompt I can use to generate an image from.');
+   image_prompt := fuse.response;
    fuse.create_session(p_session_name=>'image_test',
       p_model_name=>'stabilityai/stable-diffusion-2-1');
-   fuse.image(p_prompt=>'A cat in a hat.', p_steps=>20, p_images=>1);
+   fuse.image(
+      p_prompt=>image_prompt, 
+      p_steps=>round(dbms_random.value(10,30)), 
+      p_images=>2, 
+      p_seed=>round(dbms_random.value(1,100)));
 end;
 /
-
-
-
-
 
 -- begin 
 --    fuse.create_session (
@@ -62,9 +69,12 @@ end;
 delete from log_table;
 delete from fuse_session;
 delete from json_data;
+delete from session_prompt;
  
 select * from provider_model;
 select * from log_table order by 1 desc;
 select * from json_data order by 1 desc;
 select * from session_prompt order by 1 desc;
-delete from session_prompt;
+select * from session_image order by 1 desc;
+select * from api_response;
+

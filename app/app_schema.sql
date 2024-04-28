@@ -6,7 +6,7 @@ begin
       create table log_table (
       log_id number generated always as identity,
       log_time timestamp default systimestamp,
-      log_text varchar2(1024),
+      log_text varchar2(4000),
       log_type varchar2(25) default 'log' not null,
       log_expires timestamp default null,
       ready_notify number default 0)>';

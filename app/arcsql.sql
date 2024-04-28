@@ -973,7 +973,7 @@ begin
    log_type,
    log_expires,
    ready_notify) values (
-   substr(p_text, 1, 1000),
+   substr(p_text, 1, 4000),
    lower(p_type),
    p_expires,
    p_notify);
@@ -1255,6 +1255,37 @@ exception
       dbms_output.put_line(dbms_utility.format_error_stack);
       debug('sql_to_csv_clob: ' || dbms_utility.format_error_stack);
       return v_result;
+end;
+/
+
+
+create or replace function base64decode(p_clob clob) return blob
+-- -----------------------------------------------------------------------------------
+-- File Name    : https://oracle-base.com/dba/miscellaneous/base64decode.sql
+-- Author       : Tim Hall
+-- Description  : Decodes a Base64 CLOB into a BLOB
+-- Last Modified: 09/11/2011
+-- -----------------------------------------------------------------------------------
+is
+  l_blob    blob;
+  l_raw     raw(32767);
+  l_amt     number := 7700;
+  l_offset  number := 1;
+  l_temp    varchar2(32767);
+begin
+  begin
+    dbms_lob.createtemporary (l_blob, false, dbms_lob.call);
+    loop
+      dbms_lob.read(p_clob, l_amt, l_offset, l_temp);
+      l_offset := l_offset + l_amt;
+      l_raw    := utl_encode.base64_decode(utl_raw.cast_to_raw(l_temp));
+      dbms_lob.append (l_blob, to_blob(l_raw));
+    end loop;
+  exception
+    when no_data_found then
+      null;
+  end;
+  return l_blob;
 end;
 /
 
