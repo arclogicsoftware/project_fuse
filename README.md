@@ -42,3 +42,5 @@ If you want to follow along, please subscribe to my [YouTube](https://www.youtub
 2. [Together](https://docs.together.ai/docs/quickstart)
 3. [Anthropic](https://docs.anthropic.com/claude/reference/getting-started-with-the-api)
 
+
+

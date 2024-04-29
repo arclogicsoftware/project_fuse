@@ -10,15 +10,23 @@ end;
 
 procedure post_api_request (
    p_request_id in varchar2,
-   p_url in varchar2,
    p_data in clob) is 
    v_header_name varchar2(4000);
    v_header_val varchar2(4000);
 begin
    debug('post_api_request: '||p_data);
+   apex_web_service.g_request_headers.delete();
+   apex_web_service.g_request_headers(1).name := 'x-api-key';
+   apex_web_service.g_request_headers(1).value := fuse.g_provider_api_key; 
+   apex_web_service.g_request_headers(2).name := 'Authorization';
+   apex_web_service.g_request_headers(2).value := 'Bearer '||fuse.g_provider_api_key; 
+   apex_web_service.g_request_headers(3).name := 'anthropic-version';
+   apex_web_service.g_request_headers(3).value := '2023-06-01'; 
+   apex_web_service.g_request_headers(4).name := 'Content-Type';
+   apex_web_service.g_request_headers(4).value := 'application/json'; 
    -- The entire response is stored in response global var. Use with caution of course.
    app_api.response := apex_web_service.make_rest_request (
-      p_url         => p_url, 
+      p_url         => fuse.g_model.api_url, 
       p_http_method => 'POST',
       p_body        => p_data);
 
@@ -122,7 +130,7 @@ exception
       raise_application_error(-20000, 'Session prompt not found: '||p_session_prompt_id);
 end;
 
-procedure make_api_request (
+procedure api_request (
    p_session_prompt_id in varchar2) is
    p session_prompt%rowtype;
    data_json clob;
@@ -131,10 +139,8 @@ procedure make_api_request (
        where session_id=p_session_id and exclude=0
        order by session_id;
 begin 
-   debug('make_api_request: '||p_session_prompt_id);
-
+   debug('api_request: '||p_session_prompt_id);
    p := get_session_prompt(p_session_prompt_id);
-
    apex_json.initialize_clob_output;
    apex_json.open_object;
    apex_json.write('model', fuse.g_model.model_name);
@@ -166,20 +172,12 @@ begin
    -- if fuse.g_schema is not null and fuse.g_model.json_mode = 'Y' then 
    --    data_json := rtrim(trim(regexp_replace(data_json, chr(10), '')), '}') || ', "response_format": {"type": "json_object", "schema": '||fuse.g_schema||'}}';
    -- end if;
-
-   apex_web_service.g_request_headers.delete();
-   apex_web_service.g_request_headers(1).name := 'Authorization';
-   apex_web_service.g_request_headers(1).value := 'Bearer '||fuse.g_provider_api_key; 
-   apex_web_service.g_request_headers(2).name := 'Content-Type';
-   apex_web_service.g_request_headers(2).value := 'application/json'; 
    post_api_request (
       p_request_id=>'fuse_api_request_'||p_session_prompt_id,
-      p_url=>fuse.g_model.api_url,
       p_data=>data_json);
-
 exception
    when others then
-      raise_application_error(-20000, 'make_api_request: '||sqlerrm);
+      raise_application_error(-20000, 'api_request: '||sqlerrm);
 end;
 
 function get_last_system_prompt (
@@ -194,7 +192,7 @@ exception
       return null;
 end;
 
-procedure make_anthropic_api_request (
+procedure anthropic_api_request (
    p_session_prompt_id in varchar2) is
    p session_prompt%rowtype;
    data_json clob;
@@ -205,7 +203,7 @@ procedure make_anthropic_api_request (
        order by session_id;
    v_system_prompt varchar2(4000);
 begin 
-   debug('make_anthropic_api_request: '||p_session_prompt_id);
+   debug('anthropic_api_request: '||p_session_prompt_id);
    p := get_session_prompt(p_session_prompt_id);
    apex_json.initialize_clob_output;
    apex_json.open_object;
@@ -242,20 +240,12 @@ begin
    -- if fuse.g_schema is not null and fuse.g_model.json_mode = 'Y' then 
    --    data_json := rtrim(trim(regexp_replace(data_json, chr(10), '')), '}') || ', "response_format": {"type": "json_object", "schema": '||fuse.g_schema||'}}';
    -- end if;
-   apex_web_service.g_request_headers.delete();
-   apex_web_service.g_request_headers(1).name := 'x-api-key';
-   apex_web_service.g_request_headers(1).value := fuse.g_provider_api_key; 
-   apex_web_service.g_request_headers(2).name := 'anthropic-version';
-   apex_web_service.g_request_headers(2).value := '2023-06-01'; 
-   apex_web_service.g_request_headers(3).name := 'Content-Type';
-   apex_web_service.g_request_headers(3).value := 'application/json'; 
    post_api_request (
       p_request_id=>'fuse_api_request_'||p_session_prompt_id,
-      p_url=>fuse.g_model.api_url,
       p_data=>data_json);
 exception
    when others then
-      raise_application_error(-20000, 'make_anthropic_api_request: '||sqlerrm);
+      raise_application_error(-20000, 'anthropic_api_request: '||sqlerrm);
 end;
 
 procedure set_session (
@@ -275,14 +265,14 @@ begin
    end if;
 end;
 
-  procedure create_session (
-      p_session_name in varchar2,
-      p_model_name in varchar2,
-      p_max_tokens in number default null,
-      p_randomness in number default null,
-      p_pause in number default null,
-      p_steps in number default null,
-      p_images in number default null) is 
+procedure create_session (
+   p_session_name in varchar2,
+   p_model_name in varchar2,
+   p_max_tokens in number default null,
+   p_randomness in number default null,
+   p_pause in number default null,
+   p_steps in number default null,
+   p_images in number default null) is 
    v_max_tokens fuse_session.max_tokens%type := 1024;
    v_randomness fuse_session.randomness%type := 1;
    v_pause fuse_session.pause%type := 0;
@@ -349,15 +339,8 @@ begin
    end if;
    apex_json.close_object;
    data_json := apex_json.get_clob_output;
-
-   apex_web_service.g_request_headers.delete();
-   apex_web_service.g_request_headers(1).name := 'Authorization';
-   apex_web_service.g_request_headers(1).value := 'Bearer '||fuse.g_provider_api_key; 
-   apex_web_service.g_request_headers(2).name := 'Content-Type';
-   apex_web_service.g_request_headers(2).value := 'application/json'; 
    post_api_request (
       p_request_id=>v_json_key,
-      p_url=>fuse.g_model.api_url,
       p_data=>data_json);
 
    for i in images(v_json_key) loop 
@@ -456,9 +439,9 @@ begin
    commit;
 
    if fuse.g_provider.provider_name = 'anthropic' then
-      make_anthropic_api_request(p_session_prompt_id=>v.session_prompt_id);
+      anthropic_api_request(p_session_prompt_id=>v.session_prompt_id);
    else
-      make_api_request(p_session_prompt_id=>v.session_prompt_id);
+      api_request(p_session_prompt_id=>v.session_prompt_id);
    end if;
 
    commit;
@@ -532,7 +515,7 @@ begin
 
    commit;
 
-   make_api_request (p_session_prompt_id=>v.session_prompt_id);
+   api_request (p_session_prompt_id=>v.session_prompt_id);
 
    commit;
 
