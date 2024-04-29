@@ -6,10 +6,31 @@ procedure log_response (
 begin
    insert into api_response (response) values (p_response);
    commit;
+exception
+   when others then
+      rollback;
+      raise_application_error(-20000, 'log_response: '||sqlerrm);
+end;
+
+procedure init is 
+begin
+   fuse.last_response_json := null;
+   fuse.last_response_message := null;
+   fuse.response := null;
+   fuse.g_session := null;
+   fuse.g_image_session := null;
+   fuse.g_model := null;
+   fuse.g_image_model := null;
+   fuse.g_provider := null;
+   fuse.g_image_provider := null;
+   fuse.g_provider_api_key := null;
+   fuse.g_image_provider_api_key := null;
+   fuse.randomness := null;
 end;
 
 procedure post_api_request (
    p_request_id in varchar2,
+   p_api_url in varchar2,
    p_data in clob) is 
    v_header_name varchar2(4000);
    v_header_val varchar2(4000);
@@ -26,7 +47,7 @@ begin
    apex_web_service.g_request_headers(4).value := 'application/json'; 
    -- The entire response is stored in response global var. Use with caution of course.
    app_api.response := apex_web_service.make_rest_request (
-      p_url         => fuse.g_model.api_url, 
+      p_url         => p_api_url, 
       p_http_method => 'POST',
       p_body        => p_data);
 
@@ -59,6 +80,9 @@ begin
       p_error_type_path=>'root.error.type',
       p_error_message_path=>'root.error.message');
 
+exception
+   when others then
+      raise_application_error(-20000, 'post_api_request: '||sqlerrm);
 end;
 
 function get_provider (
@@ -101,7 +125,7 @@ function get_session (
    v_session fuse_session%rowtype;
 begin
    debug('get_session: '||p_session_name);
-   select * into v_session from fuse_session where session_name = nvl(p_session_name, fuse.g_session.session_name) and status='active';
+   select * into v_session from fuse_session where session_name = p_session_name and status='active';
    return v_session;
 exception
    when no_data_found then
@@ -144,8 +168,8 @@ begin
    apex_json.initialize_clob_output;
    apex_json.open_object;
    apex_json.write('model', fuse.g_model.model_name);
-   apex_json.write('max_tokens', fuse.g_session.max_tokens);
-   -- apex_json.write('temperature', fuse.g_session.randomness);
+   apex_json.write('max_tokens', p.max_tokens);
+   apex_json.write('temperature', p.randomness);
    -- apex_json.write('n', 1);
    if p.tools is not null then 
       apex_json.write('tools', p.tools);
@@ -174,6 +198,7 @@ begin
    -- end if;
    post_api_request (
       p_request_id=>'fuse_api_request_'||p_session_prompt_id,
+      p_api_url=>fuse.g_model.api_url,
       p_data=>data_json);
 exception
    when others then
@@ -208,8 +233,8 @@ begin
    apex_json.initialize_clob_output;
    apex_json.open_object;
    apex_json.write('model', fuse.g_model.model_name);
-   apex_json.write('max_tokens', fuse.g_session.max_tokens);
-   apex_json.write('temperature', fuse.g_session.randomness);
+   apex_json.write('max_tokens', p.max_tokens);
+   apex_json.write('temperature', p.randomness);
    if p.tools is not null then 
       apex_json.write('tools', p.tools);
       apex_json.write('name', p.function_name);
@@ -242,18 +267,62 @@ begin
    -- end if;
    post_api_request (
       p_request_id=>'fuse_api_request_'||p_session_prompt_id,
+      p_api_url=>fuse.g_model.api_url,
       p_data=>data_json);
 exception
    when others then
       raise_application_error(-20000, 'anthropic_api_request: '||sqlerrm);
 end;
 
+procedure assert_session_is_active (
+   p_session_name in varchar2) is 
+   n number;
+begin
+   select count(*) into n from fuse_session where session_name = p_session_name and status='active';
+   if n = 0 then
+      raise_application_error(-20000, 'Session not found/active: '||p_session_name);
+   end if;
+end;
+
+procedure assert_image_session_is_active (
+   p_session_name in varchar2) is 
+   n number;
+begin
+   select count(*) into n from fuse_session where session_name = p_session_name and status='active';
+   if n = 0 then
+      raise_application_error(-20000, 'Session not found/active: '||p_session_name);
+   end if;
+end;
+
 procedure set_session (
    p_session_name in varchar2) is 
 begin
+   debug('set_session: '||p_session_name);
+   assert_session_is_active(p_session_name);
    select * into fuse.g_session from fuse_session where session_name = p_session_name and status='active';
+   fuse.g_model := null;
    select * into fuse.g_model from provider_model where model_id=fuse.g_session.model_id;
    select * into fuse.g_provider from fuse_provider where provider_id=fuse.g_model.provider_id;
+   if fuse.g_provider.provider_name = 'anthropic' then
+      fuse.g_provider_api_key := fuse_config.anthropic_api_key;
+   elsif fuse.g_provider.provider_name = 'openai' then
+      fuse.g_provider_api_key := fuse_config.openai_api_key;
+   elsif fuse.g_provider.provider_name = 'together' then
+      fuse.g_provider_api_key := fuse_config.together_api_key;
+   else
+      raise_application_error(-20000, 'set_session: Provider key not found - '||fuse.g_provider.provider_name);
+   end if;
+end;
+
+procedure set_image_session (
+   p_session_name in varchar2) is 
+begin
+   debug('set_image_session: '||p_session_name);
+   assert_image_session_is_active(p_session_name);
+   select * into fuse.g_image_session from fuse_session where session_name = p_session_name and status='active';
+   fuse.g_image_model := null;
+   select * into fuse.g_image_model from provider_model where model_id=fuse.g_image_session.model_id;
+   select * into fuse.g_image_provider from fuse_provider where provider_id=fuse.g_image_model.provider_id;
    if fuse.g_provider.provider_name = 'anthropic' then
       fuse.g_provider_api_key := fuse_config.anthropic_api_key;
    elsif fuse.g_provider.provider_name = 'openai' then
@@ -268,23 +337,25 @@ end;
 procedure create_session (
    p_session_name in varchar2,
    p_model_name in varchar2,
-   p_max_tokens in number default null,
-   p_randomness in number default null,
    p_pause in number default null,
    p_steps in number default null,
    p_images in number default null) is 
-   v_max_tokens fuse_session.max_tokens%type := 1024;
-   v_randomness fuse_session.randomness%type := 1;
    v_pause fuse_session.pause%type := 0;
-   v_session_name fuse_session.session_name%type := p_session_name;
+   v_session_name fuse_session.session_name%type := nvl(p_session_name, str_random(20));
+   m provider_model%rowtype;
 begin
    -- select p_session_name||'_'||sys_context('userenv', 'sessionid') info v_session_name from dual;
    debug('create_session: '||p_session_name);
    update fuse_session set status = 'inactive' where status = 'active' and session_name = v_session_name;
-   fuse.g_model := get_model(p_model_name);   
-   insert into fuse_session (session_name, model_id, max_tokens, randomness, pause, status) 
-      values (v_session_name, fuse.g_model.model_id, v_max_tokens, v_randomness, v_pause, 'active');
-   set_session(v_session_name);
+   m := get_model(p_model_name);
+   insert into fuse_session (session_name, model_id, pause, status) 
+      values (v_session_name, m.model_id, v_pause, 'active');
+      debug('Insert new chat session: '||v_session_name);
+   if m.model_type = 'image' then 
+      set_image_session(v_session_name);
+   else 
+      set_session(v_session_name);
+   end if;
 end;
 
 procedure assert_not_image_model is 
@@ -296,21 +367,19 @@ end;
 
 procedure assert_is_image_model is 
 begin
-   if fuse.g_model.model_type != 'image' then
+   if fuse.g_image_model.model_type != 'image' then
       raise_application_error(-20000, 'Image model required.');
    end if;
 end;
 
 procedure image (
    p_prompt in varchar2,
-   p_session_name in varchar2 default fuse.g_session.session_name,
-   -- 
+   p_session_name in varchar2 default fuse.g_image_session.session_name,
    p_steps in number default 20,
-   -- Number of images to return.
    p_images in number default 1,
    p_width in number default 1024,
    p_height in number default 1024,
-   p_seed in number default 1,
+   p_seed in number default round(dbms_random.value(1,100)),
    p_negative_prompt in varchar2 default null) is
    data_json clob;
    cursor images (p_json_key in varchar2) is 
@@ -319,15 +388,14 @@ procedure image (
    v_json_key json_data.json_key%type := 'fuse_image_request_'||p_session_name;
 begin
    debug('image: '||p_prompt);
-   set_session(p_session_name);
+   set_image_session(p_session_name);
    assert_is_image_model;
-   if fuse.g_session.pause > 0 then
-      dbms_lock.sleep(fuse.g_session.pause);
+   if fuse.g_image_session.pause > 0 then
+      dbms_lock.sleep(fuse.g_image_session.pause);
    end if; 
-
    apex_json.initialize_clob_output;
    apex_json.open_object;
-   apex_json.write('model', fuse.g_model.model_name);
+   apex_json.write('model', fuse.g_image_model.model_name);
    apex_json.write('prompt', p_prompt);
    apex_json.write('n', p_images);
    apex_json.write('steps', p_steps);
@@ -341,6 +409,7 @@ begin
    data_json := apex_json.get_clob_output;
    post_api_request (
       p_request_id=>v_json_key,
+      p_api_url=>fuse.g_image_model.api_url,
       p_data=>data_json);
 
    for i in images(v_json_key) loop 
@@ -349,12 +418,14 @@ begin
          session_id, 
          prompt,
          steps,
+         seed,
          image_id,
          image_data) 
          values (
-         fuse.g_session.session_id, 
+         fuse.g_image_session.session_id, 
          p_prompt,
          p_steps,
+         p_seed,
          v_image_index,
          -- Credit: Tim Hall, https://oracle-base.com/dba/script?category=miscellaneous&file=base64decode.sql
          base64decode(i.data_value));
@@ -369,6 +440,7 @@ procedure system (
    p_session_name in varchar2 default fuse.g_session.session_name,
    p_exclude in number default 0) is
 begin
+   debug('system: '||p_prompt);
    set_session(p_session_name);
    assert_not_image_model;
    insert into session_prompt (session_id, prompt_role, prompt, exclude, end_time) 
@@ -407,13 +479,20 @@ procedure user (
    p_response_id in varchar2 default null,
    p_schema in clob default null,
    p_exclude in number default 0,
-   p_tools in clob default null) is
+   p_tools in clob default null,
+   p_randomness in number default null,
+   p_max_tokens in number default null) is
    v session_prompt%rowtype;
+   v_randomness number := p_randomness;
 begin
    debug('user: ');
    dbms_output.put_line('user: '||p_prompt);
    set_session(p_session_name);
    assert_not_image_model;
+
+   if v_randomness is null then 
+      v_randomness := nvl(fuse.randomness, 1);
+   end  if;
 
    if fuse.g_session.pause > 0 then
       dbms_lock.sleep(fuse.g_session.pause);
@@ -424,6 +503,8 @@ begin
       prompt_role, 
       prompt, 
       schema,
+      randomness,
+      max_tokens,
       tools,
       response_id,
       exclude) 
@@ -432,6 +513,8 @@ begin
       'user', 
       p_prompt, 
       p_schema,
+      v_randomness,
+      nvl(p_max_tokens, nvl(fuse.max_tokens, 1)),
       p_tools,
       p_response_id,
       p_exclude) returning session_prompt_id into v.session_prompt_id;

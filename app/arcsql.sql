@@ -1290,3 +1290,45 @@ end;
 /
 
 -- select * from table(sql_to_csv_pipe('select sql_id, elapsed_seconds from sql_log where datetime > sysdate-2/24'));
+
+create or replace function str_random (
+   -- This function generates a random string of specified length and type, which can be alphabetic (a), numeric (n), or alphanumeric (an).
+   length in number default 33, 
+   string_type in varchar2 default 'an') return varchar2 is
+   r varchar2(4000);
+   x number := 0;
+begin
+   x := least(str_random.length, 4000);
+   case lower(string_type)
+      when 'a' then
+         r := dbms_random.string('a', x);
+      when 'n' then
+         while x > 0 loop
+            x := x - 1;
+            r := r || to_char(round(dbms_random.value(0, 9)));
+         end loop;
+      when 'an' then
+         r := dbms_random.string('x', x);
+   end case;
+   return r;
+end;
+/
+
+create or replace function extract_text (
+   -- This function extracts text between two patterns.
+   -- Example: select extract_text('foo bar baz', 'foo', 'baz') from dual;
+   p_text in clob,
+   p_start_pattern in varchar2,
+   p_end_pattern in varchar2) return varchar2 is
+   v_start_index integer;
+   v_end_index integer;
+begin
+   v_start_index := instr(p_text, p_start_pattern);
+   v_end_index := instr(p_text, p_end_pattern, v_start_index + length(p_start_pattern));
+   if v_start_index = 0 or v_end_index = 0 then
+      return '';
+   else
+      return substr(p_text, v_start_index + length(p_start_pattern), v_end_index - v_start_index - length(p_start_pattern));
+   end if;
+end;
+/
