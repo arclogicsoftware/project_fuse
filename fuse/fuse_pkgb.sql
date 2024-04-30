@@ -35,15 +35,17 @@ procedure post_api_request (
    v_header_val varchar2(4000);
 begin
    debug('post_api_request: '||p_data);
+   debug('post_api_request: '||p_api_url);
+   debug('post_api_request: '||p_api_key);
    apex_web_service.g_request_headers.delete();
-   apex_web_service.g_request_headers(1).name := 'x-api-key';
-   apex_web_service.g_request_headers(1).value := p_api_key;
-   apex_web_service.g_request_headers(2).name := 'Authorization';
-   apex_web_service.g_request_headers(2).value := 'Bearer '||p_api_key;
-   apex_web_service.g_request_headers(3).name := 'anthropic-version';
-   apex_web_service.g_request_headers(3).value := '2023-06-01'; 
-   apex_web_service.g_request_headers(4).name := 'Content-Type';
-   apex_web_service.g_request_headers(4).value := 'application/json'; 
+   --apex_web_service.g_request_headers(1).name := 'x-api-key';
+   --apex_web_service.g_request_headers(1).value := p_api_key;
+   apex_web_service.g_request_headers(1).name := 'Authorization';
+   apex_web_service.g_request_headers(1).value := 'Bearer '||p_api_key;
+   -- apex_web_service.g_request_headers(2).name := 'anthropic-version';
+   -- apex_web_service.g_request_headers(2).value := '2023-06-01'; 
+   apex_web_service.g_request_headers(2).name := 'Content-Type';
+   apex_web_service.g_request_headers(2).value := 'application/json'; 
    -- The entire response is stored in response global var. Use with caution of course.
    app_api.response := apex_web_service.make_rest_request (
       p_url         => p_api_url, 
@@ -309,7 +311,11 @@ begin
          when 'anthropic' then fuse_config.anthropic_api_key
          when 'openai' then fuse_config.openai_api_key
          when 'together' then fuse_config.together_api_key
+         when 'groq' then fuse_config.groq_api_key
       end;
+   if fuse.g_model.api_key is null then 
+      raise_application_error(-20000, 'API key not found for model: '||fuse.g_model.model_name);
+   end if;
 end;
 
 procedure set_image_session (
@@ -326,7 +332,11 @@ begin
          when 'anthropic' then fuse_config.anthropic_api_key
          when 'openai' then fuse_config.openai_api_key
          when 'together' then fuse_config.together_api_key
+         when 'groq' then fuse_config.groq_api_key
       end;
+   if fuse.g_image_model.api_key is null then 
+      raise_application_error(-20000, 'API key not found for image model: '||fuse.g_image_model.model_name);
+   end if;
 end;
 
 procedure create_session (
@@ -524,22 +534,20 @@ begin
 
    commit;
 
-   -- Together
-   if fuse.g_provider.provider_name in ('together', 'openai') then
-      select trim(data_value) into fuse.response from json_data 
-       where json_key = 'fuse_api_request_'||v.session_prompt_id and json_path = 'root.choices.1.message.content';
-      select to_number(data_value) into v.total_tokens from json_data 
-       where json_key = 'fuse_api_request_'||v.session_prompt_id and json_path = 'root.usage.total_tokens';
-      select data_value into v.finish_reason from json_data 
-       where json_key = 'fuse_api_request_'||v.session_prompt_id and json_path = 'root.choices.1.finish_reason';
-   else 
-      -- Anthropic
+   if fuse.g_provider.provider_name = 'anthropic' then
       select trim(data_value) into fuse.response from json_data 
        where json_key = 'fuse_api_request_'||v.session_prompt_id and json_path = 'root.content.1.text';
       select sum(to_number(data_value)) into v.total_tokens from json_data 
        where json_key = 'fuse_api_request_'||v.session_prompt_id and json_path in ('root.usage.input_tokens', 'root.usage.output_tokens');
       select data_value into v.finish_reason from json_data 
        where json_key = 'fuse_api_request_'||v.session_prompt_id and json_path = 'root.stop_reason';
+   else
+      select trim(data_value) into fuse.response from json_data 
+       where json_key = 'fuse_api_request_'||v.session_prompt_id and json_path = 'root.choices.1.message.content';
+      select to_number(data_value) into v.total_tokens from json_data 
+       where json_key = 'fuse_api_request_'||v.session_prompt_id and json_path = 'root.usage.total_tokens';
+      select data_value into v.finish_reason from json_data 
+       where json_key = 'fuse_api_request_'||v.session_prompt_id and json_path = 'root.choices.1.finish_reason';
    end if;
 
    update session_prompt 

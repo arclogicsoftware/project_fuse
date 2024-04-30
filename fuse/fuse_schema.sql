@@ -39,6 +39,7 @@ begin
    insert into fuse_provider (provider_name) values ('together');
    insert into fuse_provider (provider_name) values ('anthropic');
    insert into fuse_provider (provider_name) values ('openai');
+   insert into fuse_provider (provider_name) values ('groq');
 end;
 /
 
@@ -130,6 +131,17 @@ declare
    v_api_url provider_model.api_url%type := 'https://api.openai.com/v1/chat/completions';
 begin
    add_model('gpt-3.5-turbo-0125', 'chat', v_api_url, v_provider, 16385);
+end;
+/
+
+declare
+   v_provider fuse_provider.provider_name%type := 'groq';
+   v_api_url provider_model.api_url%type := 'https://api.groq.com/openai/v1/chat/completions';
+begin
+   add_model('llama3-8b-8192', 'chat', v_api_url, v_provider, 8192);
+   add_model('llama3-70b-8192', 'chat', v_api_url, v_provider, 8192);
+   add_model('mixtral-8x7b-32768', 'chat', v_api_url, v_provider, 32768);
+   add_model('gemma-7b-it', 'chat', v_api_url, v_provider, 8192);
 end;
 /
 

@@ -22,6 +22,12 @@ create or replace package fuse as
    g_image_session fuse_session%rowtype;
    g_default_image_model_name provider_model.model_name%type := 'stabilityai/stable-diffusion-2-1';
    
+   procedure post_api_request (
+      p_request_id in varchar2,
+      p_api_url in varchar2,
+      p_api_key in varchar2,
+      p_data in clob);
+   
    procedure init;
 
    procedure set_session (

@@ -2,12 +2,26 @@
 
 
 /*
+Raw api post.
+-- Helpful if you need to try a fairly manual basic test of an API.
+*/
+
+begin
+   fuse.post_api_request(
+      p_request_id=>'test_request',
+      p_api_url=>'https://api.groq.com/openai/v1/chat/completions',
+      p_api_key=>fuse_config.groq_api_key,
+      p_data=>'{"messages": [{"role": "user", "content": "Explain the importance of fast language models"}], "model": "mixtral-8x7b-32768"}');
+end;
+/
+
+/*
 Basic test that runs through selected model in the provider_model table and asks a basic question.
 */
 
 declare
    -- Modify this to test specific models or all models.
-   cursor models is select * from provider_model where model_name='gpt-3.5-turbo-0125' and model_type='chat';
+   cursor models is select * from provider_model where model_name='mixtral-8x7b-32768' and model_type='chat';
    v_model_name provider_model.model_name%type;
 begin
    for m in models loop 
@@ -21,15 +35,12 @@ begin
       fuse.system('Answer all questions using a haiku.');
       fuse.user('What is the "true" meaning of the number '||round(dbms_random.value(1, 100))||'?');
    end loop;
-exception 
-   when others then 
-      raise_application_error(-20000, '"true" meaning of number test: '||v_model_name||': '||sqlerrm);
 end;
 /
 
 /* 
 Basic image model test.
-- Tested: https://docs.together.ai/docs/examples#image-generation
+-- Tested: https://docs.together.ai/docs/examples#image-generation
 */
 
 declare
@@ -89,7 +100,7 @@ delete from json_data;
 delete from session_prompt;
  
 select * from provider_model;
-select * from log_table where log_text like 'user%' order by 1 desc;
+select * from log_table order by 1 desc;
 select * from json_data order by 1 desc;
 select * from session_prompt order by 1 desc;
 select * from session_image order by 1 desc;
