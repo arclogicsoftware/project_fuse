@@ -52,6 +52,8 @@ begin
       -- chat, lang, code, image
       model_type varchar2(32) not null,
       api_url varchar2(512) default null,
+      -- Will only be used to store the api_key in g_model memory.
+      api_key varchar2(512) default null,
       provider_id number not null,
       context_length number not null,
       json_mode varchar2(1) default ''N'')';

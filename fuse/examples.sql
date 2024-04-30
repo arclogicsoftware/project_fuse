@@ -35,10 +35,13 @@ Basic image model test.
 declare
    image_prompt clob;
 begin
-   fuse.create_session(p_session_name=>'image_prompt', p_model_name=>'claude-3-haiku-20240307');
+   fuse.create_session(
+      p_session_name=>'image_prompt', 
+      p_model_name=>'claude-3-haiku-20240307');
    fuse.user(p_prompt=>'Generate a short interesting prompt I can use to generate an image from.');
    image_prompt := fuse.response;
-   fuse.create_session(p_session_name=>'image_test',
+   fuse.create_session(
+      p_session_name=>'image_test',
       p_model_name=>'stabilityai/stable-diffusion-2-1');
    fuse.image(
       p_prompt=>image_prompt, 
@@ -74,6 +77,11 @@ exec fuse.user('Now give me a short adventure sentence used to generate an uniqu
 exec fuse.image(p_prompt=>extract_text(fuse.response, '```', '```'), p_steps=>40);
 
 -- You can check the results of above by checking session_image table and session_prompt table.
+
+/*
+Next example coming soon
+*/
+
 
 delete from log_table;
 delete from fuse_session;

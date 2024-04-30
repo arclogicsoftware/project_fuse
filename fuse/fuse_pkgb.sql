@@ -23,14 +23,13 @@ begin
    fuse.g_image_model := null;
    fuse.g_provider := null;
    fuse.g_image_provider := null;
-   fuse.g_provider_api_key := null;
-   fuse.g_image_provider_api_key := null;
    fuse.randomness := null;
 end;
 
 procedure post_api_request (
    p_request_id in varchar2,
    p_api_url in varchar2,
+   p_api_key in varchar2,
    p_data in clob) is 
    v_header_name varchar2(4000);
    v_header_val varchar2(4000);
@@ -38,9 +37,9 @@ begin
    debug('post_api_request: '||p_data);
    apex_web_service.g_request_headers.delete();
    apex_web_service.g_request_headers(1).name := 'x-api-key';
-   apex_web_service.g_request_headers(1).value := fuse.g_provider_api_key; 
+   apex_web_service.g_request_headers(1).value := p_api_key;
    apex_web_service.g_request_headers(2).name := 'Authorization';
-   apex_web_service.g_request_headers(2).value := 'Bearer '||fuse.g_provider_api_key; 
+   apex_web_service.g_request_headers(2).value := 'Bearer '||p_api_key;
    apex_web_service.g_request_headers(3).name := 'anthropic-version';
    apex_web_service.g_request_headers(3).value := '2023-06-01'; 
    apex_web_service.g_request_headers(4).name := 'Content-Type';
@@ -199,6 +198,7 @@ begin
    post_api_request (
       p_request_id=>'fuse_api_request_'||p_session_prompt_id,
       p_api_url=>fuse.g_model.api_url,
+      p_api_key=>fuse.g_model.api_key,
       p_data=>data_json);
 exception
    when others then
@@ -268,6 +268,7 @@ begin
    post_api_request (
       p_request_id=>'fuse_api_request_'||p_session_prompt_id,
       p_api_url=>fuse.g_model.api_url,
+      p_api_key=>fuse.g_model.api_key,
       p_data=>data_json);
 exception
    when others then
@@ -303,15 +304,12 @@ begin
    fuse.g_model := null;
    select * into fuse.g_model from provider_model where model_id=fuse.g_session.model_id;
    select * into fuse.g_provider from fuse_provider where provider_id=fuse.g_model.provider_id;
-   if fuse.g_provider.provider_name = 'anthropic' then
-      fuse.g_provider_api_key := fuse_config.anthropic_api_key;
-   elsif fuse.g_provider.provider_name = 'openai' then
-      fuse.g_provider_api_key := fuse_config.openai_api_key;
-   elsif fuse.g_provider.provider_name = 'together' then
-      fuse.g_provider_api_key := fuse_config.together_api_key;
-   else
-      raise_application_error(-20000, 'set_session: Provider key not found - '||fuse.g_provider.provider_name);
-   end if;
+   fuse.g_model.api_key := 
+      case fuse.g_provider.provider_name
+         when 'anthropic' then fuse_config.anthropic_api_key
+         when 'openai' then fuse_config.openai_api_key
+         when 'together' then fuse_config.together_api_key
+      end;
 end;
 
 procedure set_image_session (
@@ -323,15 +321,12 @@ begin
    fuse.g_image_model := null;
    select * into fuse.g_image_model from provider_model where model_id=fuse.g_image_session.model_id;
    select * into fuse.g_image_provider from fuse_provider where provider_id=fuse.g_image_model.provider_id;
-   if fuse.g_provider.provider_name = 'anthropic' then
-      fuse.g_provider_api_key := fuse_config.anthropic_api_key;
-   elsif fuse.g_provider.provider_name = 'openai' then
-      fuse.g_provider_api_key := fuse_config.openai_api_key;
-   elsif fuse.g_provider.provider_name = 'together' then
-      fuse.g_provider_api_key := fuse_config.together_api_key;
-   else
-      raise_application_error(-20000, 'set_session: Provider key not found - '||fuse.g_provider.provider_name);
-   end if;
+   fuse.g_image_model.api_key := 
+      case fuse.g_image_provider.provider_name
+         when 'anthropic' then fuse_config.anthropic_api_key
+         when 'openai' then fuse_config.openai_api_key
+         when 'together' then fuse_config.together_api_key
+      end;
 end;
 
 procedure create_session (
@@ -346,11 +341,10 @@ procedure create_session (
 begin
    -- select p_session_name||'_'||sys_context('userenv', 'sessionid') info v_session_name from dual;
    debug('create_session: '||p_session_name);
-   update fuse_session set status = 'inactive' where status = 'active' and session_name = v_session_name;
    m := get_model(p_model_name);
-   insert into fuse_session (session_name, model_id, pause, status) 
-      values (v_session_name, m.model_id, v_pause, 'active');
-      debug('Insert new chat session: '||v_session_name);
+   update fuse_session set status = 'inactive' where status = 'active' and session_name = v_session_name;
+   insert into fuse_session (session_name, model_id, pause, status) values (v_session_name, m.model_id, v_pause, 'active');
+   debug('Insert new chat session: '||v_session_name);
    if m.model_type = 'image' then 
       set_image_session(v_session_name);
    else 
@@ -410,6 +404,7 @@ begin
    post_api_request (
       p_request_id=>v_json_key,
       p_api_url=>fuse.g_image_model.api_url,
+      p_api_key=>fuse.g_image_model.api_key,
       p_data=>data_json);
 
    for i in images(v_json_key) loop 
