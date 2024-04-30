@@ -1,10 +1,10 @@
 
 
 
-/*
-Raw api post.
+-- ----------------------------------------------------------------------------
+-- Raw api post.
 -- Helpful if you need to try a fairly manual basic test of an API.
-*/
+-- ----------------------------------------------------------------------------
 
 begin
    fuse.post_api_request(
@@ -15,9 +15,9 @@ begin
 end;
 /
 
-/*
-Basic test that runs through selected model in the provider_model table and asks a basic question.
-*/
+-- ----------------------------------------------------------------------------
+-- Basic test that runs 1 or more models asks a basic question.
+-- ----------------------------------------------------------------------------
 
 declare
    -- Modify this to test specific models or all models.
@@ -38,10 +38,10 @@ begin
 end;
 /
 
-/* 
-Basic image model test.
+-- ----------------------------------------------------------------------------
+-- Basic image model test.
 -- Tested: https://docs.together.ai/docs/examples#image-generation
-*/
+-- ----------------------------------------------------------------------------
 
 declare
    image_prompt clob;
@@ -63,9 +63,9 @@ end;
 /
 
 
-/*
-Extract text and image example.
-*/
+-- ----------------------------------------------------------------------------
+-- Extract text and image example.
+-- ----------------------------------------------------------------------------
 
 -- Re-initializes some global variables in case anything is still hanging around.
 exec fuse.init;
@@ -88,40 +88,4 @@ exec fuse.user('Provide a short creative sentence I can use to generate an image
 exec fuse.image(p_prompt=>extract_text(fuse.response, '<', '>'), p_steps=>40);
 
 -- You can check the results of above by checking session_image table and session_prompt table.
-
-/*
-Next example coming soon
-*/
-
-
-delete from log_table;
-delete from fuse_session;
-delete from json_data;
-delete from session_prompt;
- 
-select * from provider_model;
-select * from log_table order by 1 desc;
-select * from json_data order by 1 desc;
-select * from session_prompt order by 1 desc;
-select * from session_image order by 1 desc;
-select * from api_response;
-
-
--- begin 
---    fuse.create_session (
---       p_session_name=>'first_test',
---       -- p_model_name=>'codellama/CodeLlama-34b-Instruct-hf');
---       p_model_name=>'claude-3-haiku-20240307');
---    -- Need to fix for Anthropic
---    -- ORA-20000: make_api_request: ORA-20001: Error: invalid_request_error messages: Unexpected role "system". The Messages API accepts a top-level `system` parameter, not "system" as an input message role.
---    -- ORA-06512: at "APP1.FUSE", line 274
---    fuse.system('You are a conservative Cambridge scholar, one of the last of a dying breed.');
---    fuse.user('If I could pick on random book from your extensive library that I should read, what is it, and why?"');
---    dbms_output.put_line('response: '||fuse.response);
---    commit;
---    if fuse.response is null then 
---       raise_application_error(-20000, 'Response is null.');
---    end if;
--- end;
--- /
 

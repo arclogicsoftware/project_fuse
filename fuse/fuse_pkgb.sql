@@ -38,14 +38,14 @@ begin
    debug('post_api_request: '||p_api_url);
    debug('post_api_request: '||p_api_key);
    apex_web_service.g_request_headers.delete();
-   --apex_web_service.g_request_headers(1).name := 'x-api-key';
-   --apex_web_service.g_request_headers(1).value := p_api_key;
-   apex_web_service.g_request_headers(1).name := 'Authorization';
-   apex_web_service.g_request_headers(1).value := 'Bearer '||p_api_key;
-   -- apex_web_service.g_request_headers(2).name := 'anthropic-version';
-   -- apex_web_service.g_request_headers(2).value := '2023-06-01'; 
-   apex_web_service.g_request_headers(2).name := 'Content-Type';
-   apex_web_service.g_request_headers(2).value := 'application/json'; 
+   apex_web_service.g_request_headers(1).name := 'x-api-key';
+   apex_web_service.g_request_headers(1).value := p_api_key;
+   apex_web_service.g_request_headers(2).name := 'Authorization';
+   apex_web_service.g_request_headers(2).value := 'Bearer '||p_api_key;
+   apex_web_service.g_request_headers(3).name := 'anthropic-version';
+   apex_web_service.g_request_headers(3).value := '2023-06-01'; 
+   apex_web_service.g_request_headers(4).name := 'Content-Type';
+   apex_web_service.g_request_headers(4).value := 'application/json'; 
    -- The entire response is stored in response global var. Use with caution of course.
    app_api.response := apex_web_service.make_rest_request (
       p_url         => p_api_url, 

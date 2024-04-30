@@ -34,7 +34,7 @@ function get_file_size {
 }
 
 function send_message {
-   # Send an email. Make sure g.sh is sourced in REPLY_EMAIL is defined and possibly DBA_EMAIL.
+   # Send an email. Make sure fuse.sh is sourced in REPLY_EMAIL is defined and possibly DBA_EMAIL.
    # echo "foo" | send_message "{SUBJECT}" "TO"
    SND_MSG_TMP="$(get_tmp_file)1"
    EMAIL_PREFIX=${EMAIL_PREFIX:-"$(hostname -s)"}
@@ -71,7 +71,7 @@ EOF
 }
 
 function send_text {
-   # Send an text. Make sure g.sh is sourced in REPLY_EMAIL is defined and possibly DBA_TEXT.
+   # Send an text. Make sure fuse.sh is sourced in REPLY_EMAIL is defined and possibly DBA_TEXT.
    # echo "foo" | send_text "{SUBJECT}" "TO"
    SND_MSG_TMP="$(get_tmp_file)2"
    EMAIL_PREFIX=${EMAIL_PREFIX:-"$(hostname -s)"}

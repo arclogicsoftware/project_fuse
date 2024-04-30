@@ -2,7 +2,7 @@
 
 cd $(dirname $0)
 
-. ./g.sh
+. ./fuse.sh
 . ./local.env
 
 function run_sql_file {
