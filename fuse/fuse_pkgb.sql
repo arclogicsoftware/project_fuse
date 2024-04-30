@@ -480,7 +480,7 @@ procedure user (
    v session_prompt%rowtype;
    v_randomness number := p_randomness;
 begin
-   debug('user: ');
+   debug('user: '||p_prompt);
    dbms_output.put_line('user: '||p_prompt);
    set_session(p_session_name);
    assert_not_image_model;

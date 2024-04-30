@@ -59,22 +59,22 @@ Extract text and image example.
 -- Re-initializes some global variables in case anything is still hanging around.
 exec fuse.init;
 -- Create a session called 'image-agent' using Gemma.
-exec fuse.create_session('image-agent', 'google/gemma-7b-it');
+exec fuse.create_session('image-agent', 'mistralai/Mixtral-8x7B-Instruct-v0.1');
 -- Create a system prompt. We don't need to specifiy the session since we only have one.
 exec fuse.system('You are a an ingenious art dealer and entrepreneur.');
 -- Set randomness (temperature) for our upcoming prompts.
-exec fuse.randomness := .9;
+exec fuse.randomness := .3;
 -- Create a user prompt.
-exec fuse.user('Give me a short sci-fi sentence used to generate an unique image that I might be able to sell. Enclose the sentence in triple backticks.');
+exec fuse.user('Provide a short creative sentence I can use to generate an image. Enclose your answer within <> angle brackets');
 -- Create an image session called 'image-engine'.
 exec fuse.create_session('image-engine', 'stabilityai/stable-diffusion-2-1');
 -- Extract the result of the last prompt and create an image from it.
-exec fuse.image(p_prompt=>extract_text(fuse.response, '```', '```'), p_steps=>40);
+exec fuse.image(p_prompt=>extract_text(fuse.response, '<', '>'), p_steps=>40);
 -- Run another user prompt. We do not need to specify the session name. Although we have 2 sessions, one is 
 -- an image based session which does not conflict with a chat based session.
-exec fuse.user('Now give me a short adventure sentence used to generate an unique image that I might be able to sell. Enclose the sentence in triple backticks.');
+exec fuse.user('Provide a short creative sentence I can use to generate an image. Enclose your answer within <> angle brackets');
 -- Generate the image.
-exec fuse.image(p_prompt=>extract_text(fuse.response, '```', '```'), p_steps=>40);
+exec fuse.image(p_prompt=>extract_text(fuse.response, '<', '>'), p_steps=>40);
 
 -- You can check the results of above by checking session_image table and session_prompt table.
 
@@ -89,7 +89,7 @@ delete from json_data;
 delete from session_prompt;
  
 select * from provider_model;
-select * from log_table order by 1 desc;
+select * from log_table where log_text like 'user%' order by 1 desc;
 select * from json_data order by 1 desc;
 select * from session_prompt order by 1 desc;
 select * from session_image order by 1 desc;
