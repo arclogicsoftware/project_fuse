@@ -26,7 +26,7 @@ begin
    fuse.randomness := null;
 end;
 
-procedure post_api_request (
+procedure make_rest_request(
    p_request_id in varchar2,
    p_api_url in varchar2,
    p_api_key in varchar2,
@@ -34,9 +34,12 @@ procedure post_api_request (
    v_header_name varchar2(4000);
    v_header_val varchar2(4000);
 begin
-   debug('post_api_request: '||p_data);
-   debug('post_api_request: '||p_api_url);
-   debug('post_api_request: '||p_api_key);
+   debug('make_rest_request: '||p_data);
+   -- debug('make_rest_request: '||p_api_url);
+   -- debug('make_rest_request: '||p_api_key);
+   if fuse.g_session.pause > 0 then
+      dbms_lock.sleep(fuse.g_session.pause);
+   end if;
    apex_web_service.g_request_headers.delete();
    apex_web_service.g_request_headers(1).name := 'x-api-key';
    apex_web_service.g_request_headers(1).value := p_api_key;
@@ -47,7 +50,7 @@ begin
    apex_web_service.g_request_headers(4).name := 'Content-Type';
    apex_web_service.g_request_headers(4).value := 'application/json'; 
    -- The entire response is stored in response global var. Use with caution of course.
-   app_api.response := apex_web_service.make_rest_request (
+   app_api.response := apex_web_service.make_rest_request(
       p_url         => p_api_url, 
       p_http_method => 'POST',
       p_body        => p_data);
@@ -83,7 +86,7 @@ begin
 
 exception
    when others then
-      raise_application_error(-20000, 'post_api_request: '||sqlerrm);
+      raise_application_error(-20000, 'make_rest_request: '||sqlerrm);
 end;
 
 function get_provider (
@@ -155,40 +158,72 @@ exception
       raise_application_error(-20000, 'Session prompt not found: '||p_session_prompt_id);
 end;
 
-procedure api_request (
-   p_session_prompt_id in varchar2) is
+procedure set_session_prompt(
+   p_session_prompt_id in number) is
+begin
+   select * into fuse.g_session_prompt from session_prompt where session_prompt_id = p_session_prompt_id;
+end;
+
+function build_api_request(
+   p_session_prompt_id in varchar2) return clob is
    p session_prompt%rowtype;
    data_json clob;
    cursor prompts (p_session_id number) is
       select * from session_prompt
        where session_id=p_session_id and exclude=0
-       order by session_id;
+       order by session_prompt_id;
+   cursor tools (p_tool_group varchar2) is 
+      select * from fuse_tool where tool_group=p_tool_group;
 begin 
-   debug('api_request: '||p_session_prompt_id);
+   debug('build_api_request: '||p_session_prompt_id);
    p := get_session_prompt(p_session_prompt_id);
    apex_json.initialize_clob_output;
    apex_json.open_object;
    apex_json.write('model', fuse.g_model.model_name);
    apex_json.write('max_tokens', p.max_tokens);
    apex_json.write('temperature', p.randomness);
-   -- apex_json.write('n', 1);
-   if p.tools is not null then 
-      apex_json.write('tools', p.tools);
-      apex_json.write('name', p.function_name);
+   if p.tool_group is not null then 
       apex_json.write('tool_choice', 'auto');
+      apex_json.open_array('tools');
+      for t in tools(p.tool_group) loop 
+         apex_json.open_object;
+         apex_json.write('type', 'function');
+            apex_json.open_object('function');
+               apex_json.write('name', t.function_name);
+               apex_json.write('description', t.function_desc);
+               apex_json.open_object('parameters');
+                  if t.parm1 is not null then 
+                     apex_json.write('type', 'object');
+                     apex_json.open_object('properties');
+                        apex_json.open_object(t.parm1);
+                           apex_json.write('type', t.parm1_type);
+                           apex_json.write('description', t.parm1_desc);
+                        apex_json.close_object;
+                     apex_json.close_object;
+                  end if;
+                  apex_json.open_array('required');
+                  apex_json.close_array;
+               apex_json.close_object;
+            apex_json.close_object;
+         apex_json.close_object;
+      end loop;
+      apex_json.close_array;
    end if;
+   debug('fuse.g_session.session_id: '||fuse.g_session.session_id);
    apex_json.open_array('messages');
    for prompt in prompts(fuse.g_session.session_id) loop 
+      debug('Adding prompt: '||prompt.session_prompt_id);
       apex_json.open_object;
       if prompt.prompt_role = 'mock' then 
          apex_json.write('role', 'user');
       else 
          apex_json.write('role', prompt.prompt_role);
       end if;
-      apex_json.write('content', prompt.prompt);
       if prompt.prompt_role = 'tool' then
          apex_json.write('name', prompt.function_name);
+         apex_json.write('tool_call_id', prompt.tool_call_id);
       end if;
+      apex_json.write('content', prompt.prompt);
       apex_json.close_object;
    end loop;
    apex_json.close_array;
@@ -197,14 +232,11 @@ begin
    -- if fuse.g_schema is not null and fuse.g_model.json_mode = 'Y' then 
    --    data_json := rtrim(trim(regexp_replace(data_json, chr(10), '')), '}') || ', "response_format": {"type": "json_object", "schema": '||fuse.g_schema||'}}';
    -- end if;
-   post_api_request (
-      p_request_id=>'fuse_api_request_'||p_session_prompt_id,
-      p_api_url=>fuse.g_model.api_url,
-      p_api_key=>fuse.g_model.api_key,
-      p_data=>data_json);
+   dbms_output.put_line(data_json);
+   return data_json;
 exception
    when others then
-      raise_application_error(-20000, 'api_request: '||sqlerrm);
+      raise_application_error(-20000, 'build_api_request: '||dbms_utility.format_error_stack);
 end;
 
 function get_last_system_prompt (
@@ -219,29 +251,30 @@ exception
       return null;
 end;
 
-procedure anthropic_api_request (
-   p_session_prompt_id in varchar2) is
+function anthropic_build_api_request (
+   p_session_prompt_id in varchar2) return clob is
    p session_prompt%rowtype;
    data_json clob;
    cursor prompts (p_session_id number) is
       select * from session_prompt
-       where session_id=p_session_id and exclude=0
+       where session_id=p_session_id 
+         and exclude=0
          and prompt_role != 'system'
        order by session_id;
    v_system_prompt varchar2(4000);
 begin 
-   debug('anthropic_api_request: '||p_session_prompt_id);
+   debug('anthropic_build_api_request: '||p_session_prompt_id);
    p := get_session_prompt(p_session_prompt_id);
    apex_json.initialize_clob_output;
    apex_json.open_object;
    apex_json.write('model', fuse.g_model.model_name);
    apex_json.write('max_tokens', p.max_tokens);
    apex_json.write('temperature', p.randomness);
-   if p.tools is not null then 
-      apex_json.write('tools', p.tools);
-      apex_json.write('name', p.function_name);
-      apex_json.write('tool_choice', 'auto');
-   end if;
+   -- if p.tool_group is not null then 
+   --    apex_json.write('tools', p.tools);
+   --    apex_json.write('name', p.function_name);
+   --    apex_json.write('tool_choice', 'auto');
+   -- end if;
    v_system_prompt := get_last_system_prompt(fuse.g_session.session_id);
    if v_system_prompt is not null then 
       apex_json.write('system', v_system_prompt);
@@ -267,14 +300,10 @@ begin
    -- if fuse.g_schema is not null and fuse.g_model.json_mode = 'Y' then 
    --    data_json := rtrim(trim(regexp_replace(data_json, chr(10), '')), '}') || ', "response_format": {"type": "json_object", "schema": '||fuse.g_schema||'}}';
    -- end if;
-   post_api_request (
-      p_request_id=>'fuse_api_request_'||p_session_prompt_id,
-      p_api_url=>fuse.g_model.api_url,
-      p_api_key=>fuse.g_model.api_key,
-      p_data=>data_json);
+   return data_json;
 exception
    when others then
-      raise_application_error(-20000, 'anthropic_api_request: '||sqlerrm);
+      raise_application_error(-20000, 'anthropic_build_api_request: '||sqlerrm);
 end;
 
 procedure assert_session_is_active (
@@ -297,13 +326,12 @@ begin
    end if;
 end;
 
-procedure set_session (
+procedure set_session_model_provider (
    p_session_name in varchar2) is 
 begin
-   debug('set_session: '||p_session_name);
+   debug('set_session_model_provider: '||p_session_name);
    assert_session_is_active(p_session_name);
    select * into fuse.g_session from fuse_session where session_name = p_session_name and status='active';
-   fuse.g_model := null;
    select * into fuse.g_model from provider_model where model_id=fuse.g_session.model_id;
    select * into fuse.g_provider from fuse_provider where provider_id=fuse.g_model.provider_id;
    fuse.g_model.api_key := 
@@ -358,7 +386,7 @@ begin
    if m.model_type = 'image' then 
       set_image_session(v_session_name);
    else 
-      set_session(v_session_name);
+      set_session_model_provider(v_session_name);
    end if;
 end;
 
@@ -411,7 +439,7 @@ begin
    end if;
    apex_json.close_object;
    data_json := apex_json.get_clob_output;
-   post_api_request (
+   make_rest_request(
       p_request_id=>v_json_key,
       p_api_url=>fuse.g_image_model.api_url,
       p_api_key=>fuse.g_image_model.api_key,
@@ -440,68 +468,171 @@ begin
 
 end;
 
+procedure input (
+   p_prompt in varchar2 default null) is 
+begin
+   fuse.input_prompt := p_prompt;
+end;
+
+function input return varchar2 is 
+begin
+   return fuse.input_prompt;
+end;
+
+function assert_true (
+   p_assertion in varchar2) return boolean is
+   -- assert_true('2+2=4');
+begin
+   create_session(p_session_name=>'assert_true', p_model_name=>fuse_config.default_model_name);
+   -- fuse.system('You are an expert AI. You can evaluate any statement as either true of false. You only return the word true or false.');
+   fuse.user(p_prompt=>'Evaluate the truthfulness of the following: '||p_assertion, p_randomness=>0);
+   return instr(lower(fuse.response), 'true') > 0;
+end;
+
 procedure system (
    p_prompt in varchar2,
-   p_session_name in varchar2 default fuse.g_session.session_name,
-   p_exclude in number default 0) is
+   p_session_name in varchar2 default fuse.g_session.session_name) is
 begin
    debug('system: '||p_prompt);
-   set_session(p_session_name);
+   set_session_model_provider(p_session_name);
    assert_not_image_model;
-   insert into session_prompt (session_id, prompt_role, prompt, exclude, end_time) 
-      values (fuse.g_session.session_id, 'system', p_prompt, p_exclude, systimestamp);
+   insert into session_prompt (session_id, prompt_role, prompt, end_time) 
+      values (fuse.g_session.session_id, 'system', p_prompt, systimestamp);
    dbms_output.put_line('system: '||p_prompt);
 end;
 
 procedure assistant (
    p_prompt in varchar2,
    p_session_name in varchar2 default fuse.g_session.session_name,
-   p_exclude in number default 0) is
+   p_exclude in boolean default false) is
+   v_exclude number := 0;
 begin
    debug('assistant: '||p_prompt);
-   set_session(p_session_name);
+   set_session_model_provider(p_session_name);
    assert_not_image_model;
-   insert into session_prompt (session_id, prompt_role, prompt, exclude, end_time) 
-      values (fuse.g_session.session_id, 'assistant', p_prompt, p_exclude, systimestamp);
+   if p_exclude then 
+      v_exclude := 1;
+   end if;
+   insert into session_prompt (session_id, prompt_role, prompt, end_time, exclude) 
+      values (fuse.g_session.session_id, 'assistant', p_prompt, systimestamp, v_exclude);
    dbms_output.put_line('assistant: '||p_prompt);
 end;
 
 procedure mock (
    p_prompt in varchar2,
-   p_session_name in varchar2 default fuse.g_session.session_name,
-   p_exclude in number default 0) is
+   p_session_name in varchar2 default fuse.g_session.session_name) is
 begin
-   set_session(p_session_name);
+   set_session_model_provider(p_session_name);
    assert_not_image_model;
-   insert into session_prompt (session_id, prompt_role, prompt, exclude, end_time) 
-      values (fuse.g_session.session_id, 'mock', p_prompt, p_exclude, systimestamp);
+   insert into session_prompt (session_id, prompt_role, prompt, end_time) 
+      values (fuse.g_session.session_id, 'mock', p_prompt, systimestamp);
    dbms_output.put_line('mock: '||p_prompt);
 end;
 
-procedure user (
-   p_prompt in varchar2,
-   p_session_name in varchar2 default fuse.g_session.session_name,
-   p_response_id in varchar2 default null,
-   p_schema in clob default null,
-   p_exclude in number default 0,
-   p_tools in clob default null,
-   p_randomness in number default null,
-   p_max_tokens in number default null) is
-   v session_prompt%rowtype;
-   v_randomness number := p_randomness;
+procedure tool(
+   p_json_key in varchar2,
+   p_randomness in number,
+   p_max_tokens in number) is
+   -- This proc is called when the assistant returns a tool response.
+   p session_prompt%rowtype;
+   v_tool fuse_tool%rowtype;
+   v_args varchar2(512);
+   v_parm1_val varchar2(512);
+   v_parm2_val varchar2(512);
+   v_randomness number;
+   v_json_key json_data.json_key%type;
 begin
-   debug('user: '||p_prompt);
-   dbms_output.put_line('user: '||p_prompt);
-   set_session(p_session_name);
-   assert_not_image_model;
-
+   debug('tool: '||p_json_key);
+   -- p_json_key is the key used to parse the last return from the assistant. Not to be confused with v_json_key used later.
+   p.function_name := app_json.get_json_data_string(p_json_key=>p_json_key, p_json_path=>'root.choices.1.message.tool_calls.1.function.name');
+   p.tool_call_id := app_json.get_json_data_string(p_json_key=>p_json_key, p_json_path=>'root.choices.1.message.tool_calls.1.id');
+   if app_json.does_json_data_path_exist(p_json_key=>p_json_key, p_json_path=>'root.choices.1.message.tool_calls.1.function.arguments') then 
+      v_args := app_json.get_json_data_string(p_json_key=>p_json_key, p_json_path=>'root.choices.1.message.tool_calls.1.function.arguments');
+   end if;
+   if fuse.g_tool.parm1 is not null then 
+      v_parm1_val := json_value(v_args, '$.'||fuse.g_tool.parm1);
+   end if;
+   if fuse.g_tool.parm2 is not null then 
+      v_parm2_val := json_value(v_args, '$.'||fuse.g_tool.parm2);
+   end if;
    if v_randomness is null then 
       v_randomness := nvl(fuse.randomness, 1);
    end  if;
-
-   if fuse.g_session.pause > 0 then
-      dbms_lock.sleep(fuse.g_session.pause);
+   insert into session_prompt (
+      session_id, 
+      prompt_role, 
+      prompt,
+      randomness,
+      max_tokens,
+      function_name, 
+      tool_call_id, 
+      parm1, 
+      parm2) values (
+      fuse.g_session.session_id, 
+      'tool', 
+      'x',
+      v_randomness,
+      nvl(p_max_tokens, nvl(fuse.max_tokens, 1)),
+      p.function_name,
+      p.tool_call_id, 
+      v_parm1_val, 
+      v_parm2_val) returning session_prompt_id into p.session_prompt_id;
+   commit;
+   if v_parm1_val is null and v_parm2_val is null then 
+      execute immediate 'begin '||p.function_name||'; end;';
+   elsif v_parm1_val is not null and v_parm2_val is null then 
+      execute immediate 'begin '||p.function_name||'(:x); end;' using v_parm1_val;
+   else
+      execute immediate 'begin '||p.function_name||'(:x, :y); end;' using v_parm1_val, v_parm2_val;
    end if;
+   update session_prompt set prompt=fuse.x where session_prompt_id=p.session_prompt_id;
+   dbms_output.put_line('x: '||fuse.x);
+   commit;
+   make_rest_request(
+      p_request_id=>'fuse_api_request'||p.session_prompt_id,
+      p_api_url=>fuse.g_model.api_url,
+      p_api_key=>fuse.g_model.api_key,
+      p_data=>build_api_request(p_session_prompt_id=>p.session_prompt_id));
+   commit;
+   -- This is the key of the latest response from the assistant.
+   v_json_key := 'fuse_api_request'||p.session_prompt_id;
+   p.total_tokens := app_json.get_json_data_number(p_json_key=>v_json_key, p_json_path=>'root.usage.total_tokens');
+   p.finish_reason := app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.choices.1.finish_reason');
+   fuse.response := trim(app_json.get_json_data_clob(p_json_key=>v_json_key, p_json_path=>'root.choices.1.message.content'));
+   update session_prompt 
+      set total_tokens = p.total_tokens,
+          finish_reason = p.finish_reason,
+          end_time = systimestamp,
+          elapsed_seconds = secs_between_timestamps(start_time, systimestamp)
+    where session_prompt_id = p.session_prompt_id;
+
+   update fuse_session 
+      set total_tokens = total_tokens + p.total_tokens,
+          elapsed_seconds = (select sum(elapsed_seconds) from session_prompt where session_id = fuse.g_session.session_id),
+          call_count = call_count + 1
+    where session_id = fuse.g_session.session_id;
+   assistant(p_prompt=>fuse.response, p_session_name=>fuse.g_session.session_name);
+exception
+   when others then
+      raise_application_error(-20000, 'tool: '||dbms_utility.format_error_stack);
+end;
+
+procedure user(
+   p_prompt in varchar2,
+   p_session_name in varchar2 default fuse.g_session.session_name,
+   p_schema in clob default null,
+   p_tool_group in varchar2 default null,
+   p_exclude in boolean default false,
+   p_randomness in number default null,
+   p_max_tokens in number default null) is
+   v session_prompt%rowtype;
+   v_json_key json_data.json_key%type;
+   v_exclude number := bool_to_int(p_exclude);
+begin
+   debug('user: '||p_prompt);
+   dbms_output.put_line('user: '||p_prompt);
+   set_session_model_provider(p_session_name);
+   assert_not_image_model;
 
    insert into session_prompt (
       session_id, 
@@ -510,51 +641,53 @@ begin
       schema,
       randomness,
       max_tokens,
-      tools,
-      response_id,
-      exclude) 
+      tool_group) 
       values (
       fuse.g_session.session_id, 
       'user', 
       p_prompt, 
       p_schema,
-      v_randomness,
+      nvl(p_randomness, nvl(fuse.randomness, 1)),
       nvl(p_max_tokens, nvl(fuse.max_tokens, 1)),
-      p_tools,
-      p_response_id,
-      p_exclude) returning session_prompt_id into v.session_prompt_id;
+      nvl(p_tool_group, fuse.tool_group)) returning session_prompt_id into v.session_prompt_id;
 
    commit;
 
    if fuse.g_provider.provider_name = 'anthropic' then
-      anthropic_api_request(p_session_prompt_id=>v.session_prompt_id);
+      make_rest_request(
+         p_request_id=>'fuse_api_request'||v.session_prompt_id,
+         p_api_url=>fuse.g_model.api_url,
+         p_api_key=>fuse.g_model.api_key,
+         p_data=>anthropic_build_api_request(p_session_prompt_id=>v.session_prompt_id));
    else
-      api_request(p_session_prompt_id=>v.session_prompt_id);
+      make_rest_request(
+         p_request_id=>'fuse_api_request'||v.session_prompt_id,
+         p_api_url=>fuse.g_model.api_url,
+         p_api_key=>fuse.g_model.api_key,
+         p_data=>build_api_request(p_session_prompt_id=>v.session_prompt_id));
    end if;
 
    commit;
 
+   v_json_key := 'fuse_api_request'||v.session_prompt_id;
    if fuse.g_provider.provider_name = 'anthropic' then
-      select trim(data_value) into fuse.response from json_data 
-       where json_key = 'fuse_api_request_'||v.session_prompt_id and json_path = 'root.content.1.text';
-      select sum(to_number(data_value)) into v.total_tokens from json_data 
-       where json_key = 'fuse_api_request_'||v.session_prompt_id and json_path in ('root.usage.input_tokens', 'root.usage.output_tokens');
-      select data_value into v.finish_reason from json_data 
-       where json_key = 'fuse_api_request_'||v.session_prompt_id and json_path = 'root.stop_reason';
+      fuse.response := trim(app_json.get_json_data_clob(p_json_key=>v_json_key, p_json_path=>'root.content.1.text'));
+      v.total_tokens := app_json.get_json_data_number(p_json_key=>v_json_key, p_json_path=>'root.usage.input_tokens')+app_json.get_json_data_number(p_json_key=>v_json_key, p_json_path=>'root.usage.output_tokens');
+      v.finish_reason := app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.stop_reason');
    else
-      select trim(data_value) into fuse.response from json_data 
-       where json_key = 'fuse_api_request_'||v.session_prompt_id and json_path = 'root.choices.1.message.content';
-      select to_number(data_value) into v.total_tokens from json_data 
-       where json_key = 'fuse_api_request_'||v.session_prompt_id and json_path = 'root.usage.total_tokens';
-      select data_value into v.finish_reason from json_data 
-       where json_key = 'fuse_api_request_'||v.session_prompt_id and json_path = 'root.choices.1.finish_reason';
+      v.total_tokens := app_json.get_json_data_number(p_json_key=>v_json_key, p_json_path=>'root.usage.total_tokens');
+      v.finish_reason := app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.choices.1.finish_reason');
+      if v.finish_reason != 'tool_calls' then
+         fuse.response := trim(app_json.get_json_data_clob(p_json_key=>v_json_key, p_json_path=>'root.choices.1.message.content'));
+      end if;
    end if;
 
    update session_prompt 
       set total_tokens = v.total_tokens,
           finish_reason = v.finish_reason,
           end_time = systimestamp,
-          elapsed_seconds = secs_between_timestamps(start_time, systimestamp)
+          elapsed_seconds = secs_between_timestamps(start_time, systimestamp),
+          exclude=v_exclude
     where session_prompt_id = v.session_prompt_id;
 
    update fuse_session 
@@ -563,72 +696,62 @@ begin
           call_count = call_count + 1
     where session_id = fuse.g_session.session_id;
 
-   assistant(p_prompt=>fuse.response, p_session_name=>p_session_name, p_exclude=>p_exclude);
+   set_session_prompt(v.session_prompt_id);
 
+   if v.finish_reason = 'tool_calls' then
+      select * into fuse.g_tool from fuse_tool 
+       where function_name=app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.choices.1.message.tool_calls.1.function.name');
+      tool(v_json_key, nvl(p_randomness, nvl(fuse.randomness, 1)), nvl(p_max_tokens, nvl(fuse.max_tokens, 1)));
+   elsif fuse.response is not null then
+      assistant(p_prompt=>fuse.response, p_session_name=>p_session_name, p_exclude=>p_exclude);
+   end if;
 end;
 
-procedure tool (
-   p_prompt in varchar2,
+procedure add_tool (
+   p_tool_group in varchar2,
    p_function_name in varchar2,
-   p_session_name in varchar2 default fuse.g_session.session_name,
-   p_response_id in varchar2 default null,
-   p_exclude in number default 0) is
-   v session_prompt%rowtype;
+   p_function_desc in varchar2,
+   p_parm1 varchar2 default null,
+   p_parm1_type varchar2 default null,
+   p_parm1_desc varchar2 default null,
+   p_parm1_req boolean default false,
+   p_parm2 varchar2 default null,
+   p_parm2_type varchar2 default null,
+   p_parm2_desc varchar2 default null,
+   p_parm2_req boolean default false) is 
+   v_parm1_req number := 0;
+   v_parm2_req number := 0;
 begin
-   debug('tool: ');
-   dbms_output.put_line('tool: '||p_prompt);
-   set_session(p_session_name);
-   assert_not_image_model;
-
-   if fuse.g_session.pause > 0 then
-      dbms_lock.sleep(fuse.g_session.pause);
+   if p_parm1_req then 
+      v_parm1_req := 1;
    end if;
-
-   insert into session_prompt (
-      session_id, 
-      prompt_role, 
-      prompt, 
-      function_name,
-      response_id,
-      exclude) 
+   if p_parm2_req then 
+      v_parm2_req := 1;
+   end if;
+   insert into fuse_tool (
+      tool_group, 
+      function_name, 
+      function_desc,
+      parm1,
+      parm1_type,
+      parm1_desc,
+      parm1_req,
+      parm2,
+      parm2_type,
+      parm2_desc,
+      parm2_req) 
       values (
-      fuse.g_session.session_id, 
-      'tool', 
-      p_prompt, 
-      p_function_name,
-      p_response_id,
-      p_exclude) returning session_prompt_id into v.session_prompt_id;
-
-   commit;
-
-   api_request (p_session_prompt_id=>v.session_prompt_id);
-
-   commit;
-
-   select trim(data_value) into fuse.response from json_data 
-    where json_key = 'fuse_api_request_'||v.session_prompt_id and json_path = 'root.choices.1.message.content';
-
-   select to_number(data_value) into v.total_tokens from json_data 
-    where json_key = 'fuse_api_request_'||v.session_prompt_id and json_path = 'root.usage.total_tokens';
-
-   select data_value into v.finish_reason from json_data 
-    where json_key = 'fuse_api_request_'||v.session_prompt_id and json_path = 'root.choices.1.finish_reason';
-
-   update session_prompt 
-      set total_tokens = v.total_tokens,
-          finish_reason = v.finish_reason,
-          end_time = systimestamp,
-          elapsed_seconds = secs_between_timestamps(start_time, systimestamp)
-    where session_prompt_id = v.session_prompt_id;
-
-   update fuse_session 
-      set total_tokens = total_tokens + v.total_tokens,
-          elapsed_seconds = (select sum(elapsed_seconds) from session_prompt where session_id = fuse.g_session.session_id),
-          call_count = call_count + 1
-    where session_id = fuse.g_session.session_id;
-
-   assistant(p_prompt=>fuse.response, p_session_name=>p_session_name, p_exclude=>p_exclude);
-
+      p_tool_group, 
+      p_function_name, 
+      p_function_desc,
+      p_parm1,
+      p_parm1_type,
+      p_parm1_desc,
+      v_parm1_req,
+      p_parm2,
+      p_parm2_type,
+      p_parm2_desc,
+      v_parm2_req);
 end;
 
 -- procedure replay (
@@ -653,14 +776,6 @@ end;
 --       end if;
 --    end loop;
 -- end;
-
-function get_response (
-   p_response_id in varchar2) return varchar2 is
-   r session_prompt.prompt%type;
-begin
-   select prompt into r from session_prompt where response_id = p_response_id;
-   return r;
-end;
 
 end;
 /

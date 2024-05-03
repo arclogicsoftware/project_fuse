@@ -32,6 +32,10 @@ create or replace package app_json as
       p_json_key in varchar2,
       p_json_path in varchar2) return varchar2;
 
+   function get_json_data_clob (
+      p_json_key in varchar2,
+      p_json_path in varchar2) return clob;
+
    function get_json_data_number (
       p_json_key in varchar2,
       p_json_path in varchar2) return varchar2;

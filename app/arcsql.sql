@@ -1158,9 +1158,12 @@ create or replace type sql_to_csv as table of varchar2(4000);
 /
 
 create or replace function sql_to_csv_pipe (
+   -- Returns one column result set CSV string. The column name will be "COLUMN_VALUE".
+   -- Example: 
+   -- select * from table(sql_to_csv_pipe('select sql_id, elapsed_seconds from sql_log where datetime > sysdate-2/24'));
    p_sql     in varchar2,
    p_sep in varchar2 default ',') return sql_to_csv is
-   v_cur     integer default dbms_sql.open_cursor;
+   r     integer default dbms_sql.open_cursor;
    v_colval  varchar2(2000);
    v_status  integer;
    v_colcnt  number default 0;
@@ -1169,10 +1172,10 @@ create or replace function sql_to_csv_pipe (
    v_str     varchar2(2000) default '';
    v_result  sql_to_csv := sql_to_csv();
 begin
-   dbms_sql.parse(v_cur, p_sql, dbms_sql.native);
+   dbms_sql.parse(r, p_sql, dbms_sql.native);
    for i in 1 .. 255 loop
       begin
-         dbms_sql.define_column(v_cur, i, v_colval, 2000);
+         dbms_sql.define_column(r, i, v_colval, 2000);
          v_colcnt := i;
       exception
          when others then
@@ -1183,13 +1186,13 @@ begin
             end if;
       end;
    end loop;
-   dbms_sql.define_column(v_cur, 1, v_colval, 2000);
-   v_status := dbms_sql.execute(v_cur);
+   dbms_sql.define_column(r, 1, v_colval, 2000);
+   v_status := dbms_sql.execute(r);
    loop
-      exit when (dbms_sql.fetch_rows(v_cur) <= 0);
+      exit when (dbms_sql.fetch_rows(r) <= 0);
       v_sep := '';
       for i in 1 .. v_colcnt loop
-         dbms_sql.column_value(v_cur, i, v_colval);
+         dbms_sql.column_value(r, i, v_colval);
          v_str := v_str || v_sep || v_colval;
          v_sep := p_sep;
       end loop;
@@ -1198,7 +1201,7 @@ begin
       v_str := '';
       l_cnt := l_cnt + 1;
    end loop;
-   dbms_sql.close_cursor(v_cur);
+   dbms_sql.close_cursor(r);
    return v_result;
 exception
    when others then
@@ -1211,7 +1214,7 @@ end;
 create or replace function sql_to_csv_clob (
    p_sql     in varchar2,
    p_sep in varchar2 default ',') return clob is
-   v_cur     integer default dbms_sql.open_cursor;
+   r     integer default dbms_sql.open_cursor;
    v_colval  varchar2(2000);
    v_status  integer;
    v_colcnt  number default 0;
@@ -1220,10 +1223,10 @@ create or replace function sql_to_csv_clob (
    v_str     varchar2(2000) default '';
    v_result  clob;
 begin
-   dbms_sql.parse(v_cur, p_sql, dbms_sql.native);
+   dbms_sql.parse(r, p_sql, dbms_sql.native);
    for i in 1 .. 255 loop
       begin
-         dbms_sql.define_column(v_cur, i, v_colval, 2000);
+         dbms_sql.define_column(r, i, v_colval, 2000);
          v_colcnt := i;
       exception
          when others then
@@ -1234,13 +1237,13 @@ begin
             end if;
       end;
    end loop;
-   dbms_sql.define_column(v_cur, 1, v_colval, 2000);
-   v_status := dbms_sql.execute(v_cur);
+   dbms_sql.define_column(r, 1, v_colval, 2000);
+   v_status := dbms_sql.execute(r);
    loop
-      exit when (dbms_sql.fetch_rows(v_cur) <= 0);
+      exit when (dbms_sql.fetch_rows(r) <= 0);
       v_sep := '';
       for i in 1 .. v_colcnt loop
-         dbms_sql.column_value(v_cur, i, v_colval);
+         dbms_sql.column_value(r, i, v_colval);
          v_str := v_str || v_sep || v_colval;
          v_sep := p_sep;
       end loop;
@@ -1248,7 +1251,7 @@ begin
       v_str := '';
       l_cnt := l_cnt + 1;
    end loop;
-   dbms_sql.close_cursor(v_cur);
+   dbms_sql.close_cursor(r);
    return v_result;
 exception
    when others then
@@ -1257,7 +1260,6 @@ exception
       return v_result;
 end;
 /
-
 
 create or replace function base64decode(p_clob clob) return blob
 -- -----------------------------------------------------------------------------------
@@ -1288,8 +1290,6 @@ begin
   return l_blob;
 end;
 /
-
--- select * from table(sql_to_csv_pipe('select sql_id, elapsed_seconds from sql_log where datetime > sysdate-2/24'));
 
 create or replace function str_random (
    -- This function generates a random string of specified length and type, which can be alphabetic (a), numeric (n), or alphanumeric (an).
@@ -1329,6 +1329,45 @@ begin
       return '';
    else
       return substr(p_text, v_start_index + length(p_start_pattern), v_end_index - v_start_index - length(p_start_pattern));
+   end if;
+end;
+/
+
+create or replace function convert_to_csv_row (p_sql_query in varchar2)
+  return clob
+is
+  v_csv_string clob;
+  v_value varchar2(4000);
+  v_cursor sys_refcursor;
+begin
+  open v_cursor for p_sql_query;
+  v_csv_string := '';
+  loop
+    fetch v_cursor into v_value;
+    exit when v_cursor%notfound;
+    v_csv_string := v_csv_string || ',' || v_value;
+  end loop;
+  if v_csv_string is not null then
+    v_csv_string := substr(v_csv_string, 2); -- Remove leading comma.
+  end if;
+  close v_cursor;
+  return v_csv_string;
+exception
+  when others then
+    if v_cursor%isopen then
+      close v_cursor;
+    end if;
+    raise;
+end;
+/
+
+create or replace function bool_to_int (
+   p_bool in boolean) return number is
+begin
+   if p_bool then 
+      return 1;
+   else 
+      return 0;
    end if;
 end;
 /

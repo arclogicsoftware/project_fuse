@@ -241,6 +241,15 @@ begin
    return r;
 end;
 
+function get_json_data_clob ( -- Return a value from json_data table as a clob.
+   p_json_key in varchar2,
+   p_json_path in varchar2) return clob is 
+   r clob;
+begin 
+   select to_char(data_value) into r from json_data where json_key = p_json_key and json_path = p_json_path;
+   return r;
+end;
+
 function get_json_data_number ( -- Return a value from json_data table as a number.
    p_json_key in varchar2,
    p_json_path in varchar2) return varchar2 is 
