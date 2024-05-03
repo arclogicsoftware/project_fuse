@@ -575,36 +575,36 @@ begin
       fuse.g_session_prompt.parm1, 
       fuse.g_session_prompt.parm2) returning session_prompt_id into v_session_prompt_id;
    commit;
-   if v_parm1_val is null and v_parm2_val is null then 
-      execute immediate 'begin '||p.function_name||'; end;';
-   elsif v_parm1_val is not null and v_parm2_val is null then 
-      execute immediate 'begin '||p.function_name||'(:x); end;' using v_parm1_val;
+   if fuse.g_session_prompt.parm1 is null and fuse.g_session_prompt.parm2 is null then 
+      execute immediate 'begin '||fuse.g_session_prompt.function_name||'; end;';
+   elsif fuse.g_session_prompt.parm1 is not null and fuse.g_session_prompt.parm2 is null then 
+      execute immediate 'begin '||fuse.g_session_prompt.function_name||'(:x); end;' using fuse.g_session_prompt.parm1;
    else
-      execute immediate 'begin '||p.function_name||'(:x, :y); end;' using v_parm1_val, v_parm2_val;
+      execute immediate 'begin '||fuse.g_session_prompt.function_name||'(:x, :y); end;' using fuse.g_session_prompt.parm1, fuse.g_session_prompt.parm2;
    end if;
-   update session_prompt set prompt=fuse.x where session_prompt_id=p.session_prompt_id;
+   update session_prompt set prompt=fuse.x where session_prompt_id=v_session_prompt_id;
    dbms_output.put_line('x: '||fuse.x);
    commit;
    make_rest_request(
-      p_request_id=>'fuse_response'||p.session_prompt_id,
+      p_request_id=>'fuse_response'||v_session_prompt_id,
       p_api_url=>fuse.g_model.api_url,
       p_api_key=>fuse.g_model.api_key,
-      p_data=>build_api_request(p_session_prompt_id=>p.session_prompt_id));
+      p_data=>build_api_request(p_session_prompt_id=>v_session_prompt_id));
    commit;
    -- This is the key of the latest response from the assistant.
-   v_json_key := 'fuse_response'||p.session_prompt_id;
-   p.total_tokens := app_json.get_json_data_number(p_json_key=>v_json_key, p_json_path=>'root.usage.total_tokens');
-   p.finish_reason := app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.choices.1.finish_reason');
+   v_json_key := 'fuse_response'||v_session_prompt_id;
+   fuse.g_session_prompt.total_tokens := app_json.get_json_data_number(p_json_key=>v_json_key, p_json_path=>'root.usage.total_tokens');
+   fuse.g_session_prompt.finish_reason := app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.choices.1.finish_reason');
    fuse.response := trim(app_json.get_json_data_clob(p_json_key=>v_json_key, p_json_path=>'root.choices.1.message.content'));
    update session_prompt 
-      set total_tokens = p.total_tokens,
-          finish_reason = p.finish_reason,
+      set total_tokens = fuse.g_session_prompt.total_tokens,
+          finish_reason = fuse.g_session_prompt.finish_reason,
           end_time = systimestamp,
           elapsed_seconds = secs_between_timestamps(start_time, systimestamp)
-    where session_prompt_id = p.session_prompt_id;
+    where session_prompt_id = v_session_prompt_id;
 
    update fuse_session 
-      set total_tokens = total_tokens + p.total_tokens,
+      set total_tokens = total_tokens + fuse.g_session_prompt.total_tokens,
           elapsed_seconds = (select sum(elapsed_seconds) from session_prompt where session_id = fuse.g_session.session_id),
           call_count = call_count + 1
     where session_id = fuse.g_session.session_id;
