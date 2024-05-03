@@ -164,6 +164,12 @@ begin
    select * into fuse.g_session_prompt from session_prompt where session_prompt_id = p_session_prompt_id;
 end;
 
+procedure set_tool(
+   p_function_name in varchar2) is 
+begin
+   select * into fuse.g_tool from fuse_tool where function_name = p_function_name;
+end;
+
 function build_api_request(
    p_session_prompt_id in varchar2) return clob is
    p session_prompt%rowtype;
@@ -530,34 +536,25 @@ begin
 end;
 
 procedure tool(
-   p_json_key in varchar2,
-   p_randomness in number,
-   p_max_tokens in number) is
+   p_json_key in varchar2) is
    -- This proc is called when the assistant returns a tool response.
-   p session_prompt%rowtype;
-   v_tool fuse_tool%rowtype;
    v_args varchar2(512);
-   v_parm1_val varchar2(512);
-   v_parm2_val varchar2(512);
-   v_randomness number;
    v_json_key json_data.json_key%type;
+   v_session_prompt_id session_prompt.session_prompt_id%type;
 begin
    debug('tool: '||p_json_key);
    -- p_json_key is the key used to parse the last return from the assistant. Not to be confused with v_json_key used later.
-   p.function_name := app_json.get_json_data_string(p_json_key=>p_json_key, p_json_path=>'root.choices.1.message.tool_calls.1.function.name');
-   p.tool_call_id := app_json.get_json_data_string(p_json_key=>p_json_key, p_json_path=>'root.choices.1.message.tool_calls.1.id');
+   fuse.g_session_prompt.function_name := app_json.get_json_data_string(p_json_key=>p_json_key, p_json_path=>'root.choices.1.message.tool_calls.1.function.name');
+   fuse.g_session_prompt.tool_call_id := app_json.get_json_data_string(p_json_key=>p_json_key, p_json_path=>'root.choices.1.message.tool_calls.1.id');
    if app_json.does_json_data_path_exist(p_json_key=>p_json_key, p_json_path=>'root.choices.1.message.tool_calls.1.function.arguments') then 
       v_args := app_json.get_json_data_string(p_json_key=>p_json_key, p_json_path=>'root.choices.1.message.tool_calls.1.function.arguments');
    end if;
    if fuse.g_tool.parm1 is not null then 
-      v_parm1_val := json_value(v_args, '$.'||fuse.g_tool.parm1);
+      fuse.g_session_prompt.parm1 := json_value(v_args, '$.'||fuse.g_tool.parm1);
    end if;
    if fuse.g_tool.parm2 is not null then 
-      v_parm2_val := json_value(v_args, '$.'||fuse.g_tool.parm2);
+      fuse.g_session_prompt.parm2 := json_value(v_args, '$.'||fuse.g_tool.parm2);
    end if;
-   if v_randomness is null then 
-      v_randomness := nvl(fuse.randomness, 1);
-   end  if;
    insert into session_prompt (
       session_id, 
       prompt_role, 
@@ -571,12 +568,12 @@ begin
       fuse.g_session.session_id, 
       'tool', 
       'x',
-      v_randomness,
-      nvl(p_max_tokens, nvl(fuse.max_tokens, 1)),
-      p.function_name,
-      p.tool_call_id, 
-      v_parm1_val, 
-      v_parm2_val) returning session_prompt_id into p.session_prompt_id;
+      fuse.g_session_prompt.randomness,
+      fuse.g_session_prompt.max_tokens,
+      fuse.g_session_prompt.function_name,
+      fuse.g_session_prompt.tool_call_id, 
+      fuse.g_session_prompt.parm1, 
+      fuse.g_session_prompt.parm2) returning session_prompt_id into v_session_prompt_id;
    commit;
    if v_parm1_val is null and v_parm2_val is null then 
       execute immediate 'begin '||p.function_name||'; end;';
@@ -589,13 +586,13 @@ begin
    dbms_output.put_line('x: '||fuse.x);
    commit;
    make_rest_request(
-      p_request_id=>'fuse_api_request'||p.session_prompt_id,
+      p_request_id=>'fuse_response'||p.session_prompt_id,
       p_api_url=>fuse.g_model.api_url,
       p_api_key=>fuse.g_model.api_key,
       p_data=>build_api_request(p_session_prompt_id=>p.session_prompt_id));
    commit;
    -- This is the key of the latest response from the assistant.
-   v_json_key := 'fuse_api_request'||p.session_prompt_id;
+   v_json_key := 'fuse_response'||p.session_prompt_id;
    p.total_tokens := app_json.get_json_data_number(p_json_key=>v_json_key, p_json_path=>'root.usage.total_tokens');
    p.finish_reason := app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.choices.1.finish_reason');
    fuse.response := trim(app_json.get_json_data_clob(p_json_key=>v_json_key, p_json_path=>'root.choices.1.message.content'));
@@ -655,13 +652,13 @@ begin
 
    if fuse.g_provider.provider_name = 'anthropic' then
       make_rest_request(
-         p_request_id=>'fuse_api_request'||v.session_prompt_id,
+         p_request_id=>'fuse_response'||v.session_prompt_id,
          p_api_url=>fuse.g_model.api_url,
          p_api_key=>fuse.g_model.api_key,
          p_data=>anthropic_build_api_request(p_session_prompt_id=>v.session_prompt_id));
    else
       make_rest_request(
-         p_request_id=>'fuse_api_request'||v.session_prompt_id,
+         p_request_id=>'fuse_response'||v.session_prompt_id,
          p_api_url=>fuse.g_model.api_url,
          p_api_key=>fuse.g_model.api_key,
          p_data=>build_api_request(p_session_prompt_id=>v.session_prompt_id));
@@ -669,7 +666,7 @@ begin
 
    commit;
 
-   v_json_key := 'fuse_api_request'||v.session_prompt_id;
+   v_json_key := 'fuse_response'||v.session_prompt_id;
    if fuse.g_provider.provider_name = 'anthropic' then
       fuse.response := trim(app_json.get_json_data_clob(p_json_key=>v_json_key, p_json_path=>'root.content.1.text'));
       v.total_tokens := app_json.get_json_data_number(p_json_key=>v_json_key, p_json_path=>'root.usage.input_tokens')+app_json.get_json_data_number(p_json_key=>v_json_key, p_json_path=>'root.usage.output_tokens');
@@ -690,18 +687,17 @@ begin
           exclude=v_exclude
     where session_prompt_id = v.session_prompt_id;
 
+   set_session_prompt(v.session_prompt_id);
+
    update fuse_session 
       set total_tokens = total_tokens + v.total_tokens,
           elapsed_seconds = (select sum(elapsed_seconds) from session_prompt where session_id = fuse.g_session.session_id),
           call_count = call_count + 1
     where session_id = fuse.g_session.session_id;
 
-   set_session_prompt(v.session_prompt_id);
-
    if v.finish_reason = 'tool_calls' then
-      select * into fuse.g_tool from fuse_tool 
-       where function_name=app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.choices.1.message.tool_calls.1.function.name');
-      tool(v_json_key, nvl(p_randomness, nvl(fuse.randomness, 1)), nvl(p_max_tokens, nvl(fuse.max_tokens, 1)));
+      set_tool(app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.choices.1.message.tool_calls.1.function.name'));
+      tool(v_json_key);
    elsif fuse.response is not null then
       assistant(p_prompt=>fuse.response, p_session_name=>p_session_name, p_exclude=>p_exclude);
    end if;
