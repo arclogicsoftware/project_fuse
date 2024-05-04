@@ -23,7 +23,11 @@ begin
    fuse.g_image_model := null;
    fuse.g_provider := null;
    fuse.g_image_provider := null;
-   fuse.randomness := null;
+   fuse.g_session_prompt := null;
+   fuse.g_tool := null;
+   fuse.randomness := 1;
+   fuse.max_tokens := 1024;
+   fuse.x := null;
 end;
 
 procedure make_rest_request(
@@ -50,17 +54,17 @@ begin
    apex_web_service.g_request_headers(4).name := 'Content-Type';
    apex_web_service.g_request_headers(4).value := 'application/json'; 
    -- The entire response is stored in response global var. Use with caution of course.
-   app_api.response := apex_web_service.make_rest_request(
+   fuse.response := apex_web_service.make_rest_request(
       p_url         => p_api_url, 
       p_http_method => 'POST',
       p_body        => p_data);
 
    -- Do not try to debug log the response. It can be large and will exceed limit of varchar2 and raise error.
    -- Instead we will write the raw response to a table.
-   log_response(app_api.response);
+   log_response(fuse.response);
 
    -- Log headers if verbose=true
-   if app_api.verbose then
+   if fuse.verbose then
       for i in 1.. apex_web_service.g_headers.count loop
          v_header_name := apex_web_service.g_headers(i).name;
          v_header_val := apex_web_service.g_headers(i).value;
@@ -69,13 +73,13 @@ begin
       end loop;
    end if;
 
-   app_api.last_status_code := apex_web_service.g_status_code;
+   fuse.last_status_code := apex_web_service.g_status_code;
    debug('g_reason_phrase: '||apex_web_service.g_reason_phrase);
-   debug('last_status_code: '||app_api.last_status_code);
+   debug('last_status_code: '||fuse.last_status_code);
 
    -- The response is parsed into individual rows in the json_data table.
    app_json.json_to_data_table (
-      p_json_data=>app_api.response,
+      p_json_data=>fuse.response,
       p_json_key=>p_request_id);
 
    app_json.assert_no_errors (

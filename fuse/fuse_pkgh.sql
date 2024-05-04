@@ -7,8 +7,10 @@ create or replace package fuse as
    verbose boolean := true;
 
    last_response_json clob;
-   last_response_message clob;
    response clob;
+
+   last_status_code number;
+   last_response_message clob;
 
    -- Used for non images
    g_provider fuse_provider%rowtype;
