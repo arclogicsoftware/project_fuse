@@ -5,5 +5,5 @@
 @fuse_pkgh.sql
 @fuse_pkgb.sql
 @fuse_prcs.sql
-@tools/oracle_tools.sql
+@plugins/oracle_tools/install_oracle_tools.sql
 
