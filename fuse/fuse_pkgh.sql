@@ -39,13 +39,26 @@ create or replace package fuse as
    
    procedure init;
 
+   procedure set_session_model_provider (
+      p_session_id in number);
+
    procedure set_image_session (
       p_session_name in varchar2);
 
    procedure create_session (
       p_session_name in varchar2,
       p_model_name in varchar2,
-      p_pause in number default null,
+      p_user_name in varchar2 default null,
+      p_title in varchar2 default null,
+      p_pause in number default 0,
+      p_steps in number default null,
+      p_images in number default null);
+
+   procedure request_session (
+      p_session_name in varchar2,
+      p_model_name in varchar2,
+      p_user_name in varchar2 default null,
+      p_pause in number default 0,
       p_steps in number default null,
       p_images in number default null);
 

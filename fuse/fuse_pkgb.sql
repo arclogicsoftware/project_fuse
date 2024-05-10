@@ -9,7 +9,7 @@ begin
 exception
    when others then
       rollback;
-      raise_application_error(-20000, 'log_response: '||sqlerrm);
+      raise_application_error(-20000, 'log_response: '||dbms_utility.format_error_stack);
 end;
 
 procedure init is 
@@ -90,7 +90,7 @@ begin
 
 exception
    when others then
-      raise_application_error(-20000, 'make_rest_request: '||sqlerrm);
+      raise_application_error(-20000, 'make_rest_request: '||dbms_utility.format_error_stack);
 end;
 
 function get_provider (
@@ -285,6 +285,7 @@ begin
    --    apex_json.write('name', p.function_name);
    --    apex_json.write('tool_choice', 'auto');
    -- end if;
+   -- Anthropic requires a system prompt to be included in the request apart from the user prompts. So we will always get the last prompt provided.
    v_system_prompt := get_last_system_prompt(fuse.g_session.session_id);
    if v_system_prompt is not null then 
       apex_json.write('system', v_system_prompt);
@@ -313,7 +314,7 @@ begin
    return data_json;
 exception
    when others then
-      raise_application_error(-20000, 'anthropic_build_api_request: '||sqlerrm);
+      raise_application_error(-20000, 'anthropic_build_api_request: '||dbms_utility.format_error_stack);
 end;
 
 procedure assert_session_is_active (
@@ -356,6 +357,15 @@ begin
    end if;
 end;
 
+procedure set_session_model_provider (
+   p_session_id in number) is 
+   v_session_name fuse_session.session_name%type;
+begin
+   debug('set_session_model_provider: '||p_session_id);
+   select session_name into v_session_name from fuse_session where session_id=p_session_id;
+   set_session_model_provider(p_session_name=>v_session_name);
+end;
+
 procedure set_image_session (
    p_session_name in varchar2) is 
 begin
@@ -380,23 +390,53 @@ end;
 procedure create_session (
    p_session_name in varchar2,
    p_model_name in varchar2,
-   p_pause in number default null,
+   p_user_name in varchar2 default null,
+   p_title in varchar2 default null,
+   p_pause in number default 0,
    p_steps in number default null,
    p_images in number default null) is 
    v_pause fuse_session.pause%type := 0;
-   v_session_name fuse_session.session_name%type := nvl(p_session_name, str_random(20));
+   v_session_name fuse_session.session_name%type := nvl(p_session_name||'-'||p_user_name, str_random(20));
    m provider_model%rowtype;
 begin
    -- select p_session_name||'_'||sys_context('userenv', 'sessionid') info v_session_name from dual;
    debug('create_session: '||p_session_name);
    m := get_model(p_model_name);
    update fuse_session set status = 'inactive' where status = 'active' and session_name = v_session_name;
-   insert into fuse_session (session_name, model_id, pause, status) values (v_session_name, m.model_id, v_pause, 'active');
+   insert into fuse_session (session_name, model_id, user_name, pause, status) values (v_session_name, m.model_id, p_user_name, v_pause, 'active');
    debug('Insert new chat session: '||v_session_name);
    if m.model_type = 'image' then 
       set_image_session(v_session_name);
    else 
       set_session_model_provider(v_session_name);
+   end if;
+end;
+
+procedure request_session (
+   p_session_name in varchar2,
+   p_model_name in varchar2,
+   p_user_name in varchar2 default null,
+   p_pause in number default 0,
+   p_steps in number default null,
+   p_images in number default null) is
+   -- This proc is called when the user wants to create a new session or continue an existing session.
+   n number;
+begin
+   select count(*) into n from fuse_session 
+    where session_name = p_session_name||'-'||p_user_name
+      and status='active'
+      and model_id = (select model_id from provider_model where model_name = p_model_name)
+      and nvl(user_name, 'null') = nvl(p_user_name, 'null');
+   if n = 1 then 
+      set_session_model_provider(p_session_name||'-'||p_user_name);
+   else
+      create_session(
+         p_session_name=>p_session_name, 
+         p_model_name=>p_model_name,
+         p_user_name=>p_user_name, 
+         p_pause=>p_pause, 
+         p_steps=>p_steps, 
+         p_images=>p_images);
    end if;
 end;
 
