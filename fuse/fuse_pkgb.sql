@@ -168,7 +168,7 @@ begin
    select * into fuse.g_session_prompt from session_prompt where session_prompt_id = p_session_prompt_id;
 end;
 
-procedure set_tool(
+procedure set_tool (
    p_function_name in varchar2) is 
 begin
    select * into fuse.g_tool from fuse_tool where function_name = p_function_name;
@@ -182,8 +182,8 @@ function build_api_request(
       select * from session_prompt
        where session_id=p_session_id and exclude=0
        order by session_prompt_id;
-   cursor tools (p_tool_group varchar2) is 
-      select * from fuse_tool where tool_group=p_tool_group;
+   cursor tools (p_tool_group_id varchar2) is 
+      select * from fuse_tool where tool_group_id=p_tool_group_id;
 begin 
    debug('build_api_request: '||p_session_prompt_id);
    p := get_session_prompt(p_session_prompt_id);
@@ -192,10 +192,10 @@ begin
    apex_json.write('model', fuse.g_model.model_name);
    apex_json.write('max_tokens', p.max_tokens);
    apex_json.write('temperature', p.randomness);
-   if p.tool_group is not null then 
+   if fuse.g_session.tool_group_id is not null then 
       apex_json.write('tool_choice', 'auto');
       apex_json.open_array('tools');
-      for t in tools(p.tool_group) loop 
+      for t in tools(fuse.g_session.tool_group_id) loop 
          apex_json.open_object;
          apex_json.write('type', 'function');
             apex_json.open_object('function');
@@ -387,23 +387,48 @@ begin
    end if;
 end;
 
+function get_tool_group_id (
+   p_tool_group in varchar2) return number is
+   n number;
+begin
+   select tool_group_id into n from tool_group where tool_group_name = p_tool_group;
+   return n;
+end;
+
 procedure create_session (
    p_session_name in varchar2,
    p_model_name in varchar2,
    p_user_name in varchar2 default null,
    p_title in varchar2 default null,
    p_pause in number default 0,
+   p_tool_group in varchar2 default null,
    p_steps in number default null,
    p_images in number default null) is 
    v_pause fuse_session.pause%type := 0;
    v_session_name fuse_session.session_name%type := nvl(p_session_name||'-'||p_user_name, str_random(20));
    m provider_model%rowtype;
+   v_tool_group_id tool_group.tool_group_id%type;
 begin
    -- select p_session_name||'_'||sys_context('userenv', 'sessionid') info v_session_name from dual;
    debug('create_session: '||p_session_name);
+   if p_tool_group is not null then 
+      v_tool_group_id := get_tool_group_id(p_tool_group);
+   end if;
    m := get_model(p_model_name);
    update fuse_session set status = 'inactive' where status = 'active' and session_name = v_session_name;
-   insert into fuse_session (session_name, model_id, user_name, pause, status) values (v_session_name, m.model_id, p_user_name, v_pause, 'active');
+   insert into fuse_session (
+      session_name, 
+      model_id, 
+      user_name, 
+      pause, 
+      status,
+      tool_group_id) values (
+      v_session_name, 
+      m.model_id, 
+      p_user_name, 
+      v_pause, 
+      'active',
+      v_tool_group_id);
    debug('Insert new chat session: '||v_session_name);
    if m.model_type = 'image' then 
       set_image_session(v_session_name);
@@ -658,11 +683,10 @@ exception
       raise_application_error(-20000, 'tool: '||dbms_utility.format_error_stack);
 end;
 
-procedure user(
+procedure user (
    p_prompt in varchar2,
    p_session_name in varchar2 default fuse.g_session.session_name,
    p_schema in clob default null,
-   p_tool_group in varchar2 default null,
    p_exclude in boolean default false,
    p_randomness in number default null,
    p_max_tokens in number default null) is
@@ -681,16 +705,14 @@ begin
       prompt, 
       schema,
       randomness,
-      max_tokens,
-      tool_group) 
+      max_tokens) 
       values (
       fuse.g_session.session_id, 
       'user', 
       p_prompt, 
       p_schema,
       nvl(p_randomness, nvl(fuse.randomness, 1)),
-      nvl(p_max_tokens, nvl(fuse.max_tokens, 1)),
-      nvl(p_tool_group, fuse.tool_group)) returning session_prompt_id into v.session_prompt_id;
+      nvl(p_max_tokens, nvl(fuse.max_tokens, 1))) returning session_prompt_id into v.session_prompt_id;
 
    commit;
 
@@ -747,6 +769,13 @@ begin
    end if;
 end;
 
+procedure add_tool_group (
+   p_tool_group in varchar2,
+   p_desc in varchar2) is 
+begin
+   insert into tool_group (tool_group_name, description) values (p_tool_group, p_desc);
+end;
+
 procedure add_tool (
    p_tool_group in varchar2,
    p_function_name in varchar2,
@@ -761,6 +790,7 @@ procedure add_tool (
    p_parm2_req boolean default false) is 
    v_parm1_req number := 0;
    v_parm2_req number := 0;
+   v_tool_group_id number;
 begin
    if p_parm1_req then 
       v_parm1_req := 1;
@@ -768,8 +798,13 @@ begin
    if p_parm2_req then 
       v_parm2_req := 1;
    end if;
+
+   select tool_group_id into v_tool_group_id 
+     from tool_group 
+    where tool_group_name = p_tool_group;
+
    insert into fuse_tool (
-      tool_group, 
+      tool_group_id, 
       function_name, 
       function_desc,
       parm1,
@@ -781,7 +816,7 @@ begin
       parm2_desc,
       parm2_req) 
       values (
-      p_tool_group, 
+      v_tool_group_id, 
       p_function_name, 
       p_function_desc,
       p_parm1,
@@ -792,6 +827,9 @@ begin
       p_parm2_type,
       p_parm2_desc,
       v_parm2_req);
+exception
+   when others then
+      raise_application_error(-20000, 'add_tool: '||dbms_utility.format_error_stack);
 end;
 
 -- procedure replay (

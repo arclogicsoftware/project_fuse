@@ -2,7 +2,6 @@ create or replace package fuse as
 
    randomness session_prompt.randomness%type default 1;
    max_tokens session_prompt.max_tokens%type default 1024;
-   tool_group fuse_tool.tool_group%type;
    x clob;
    verbose boolean := true;
 
@@ -18,6 +17,7 @@ create or replace package fuse as
    g_model provider_model%rowtype;
    g_session fuse_session%rowtype;
    g_session_prompt session_prompt%rowtype;
+   g_tool_group tool_group%rowtype;
    g_tool fuse_tool%rowtype;
    g_default_chat_model_name provider_model.model_name%type := 'codellama/CodeLlama-13b-Instruct-hf';
    
@@ -51,6 +51,7 @@ create or replace package fuse as
       p_user_name in varchar2 default null,
       p_title in varchar2 default null,
       p_pause in number default 0,
+      p_tool_group in varchar2 default null,
       p_steps in number default null,
       p_images in number default null);
 
@@ -87,10 +88,13 @@ create or replace package fuse as
       p_prompt in varchar2,
       p_session_name in varchar2 default fuse.g_session.session_name,
       p_schema in clob default null,
-      p_tool_group in varchar2 default null,
       p_exclude in boolean default false,
       p_randomness in number default null,
       p_max_tokens in number default null);
+
+   procedure add_tool_group (
+      p_tool_group in varchar2,
+      p_desc in varchar2);
 
    procedure add_tool (
       p_tool_group in varchar2,
