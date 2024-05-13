@@ -10,7 +10,7 @@ end;
 
 create or replace procedure list_all_db_users as 
 begin
-   fuse.x := convert_to_csv_row('select username from dba_users');
+   fuse.tool_response := convert_to_csv_row('select username from dba_users');
 end;
 /
 
@@ -24,7 +24,7 @@ end;
 
 create or replace procedure get_row_count_from_table (p_table_name in varchar2) is 
 begin
-   execute immediate 'select count(*) from '||p_table_name into fuse.x;
+   execute immediate 'select count(*) from '||p_table_name into fuse.tool_response;
 end;
 /
 

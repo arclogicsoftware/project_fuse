@@ -143,7 +143,7 @@ procedure json_to_data_table ( -- Parses each element in a JSON object and inser
    v_json_path varchar2(128);
    v_data_size number;
 begin
-   debug('json_to_data_table: '||p_json_key);
+   debug2('json_to_data_table: '||p_json_key);
    if p_root_key is null then 
       j := json_object_t (p_json_data);
    else 
@@ -237,6 +237,7 @@ function get_json_data_string ( -- Return a value from json_data table as a stri
    p_json_path in varchar2) return varchar2 is 
    r varchar2(4000);
 begin 
+   debug('get_json_data_string: '||p_json_key||', '||p_json_path);
    select to_char(data_value) into r from json_data where json_key = p_json_key and json_path = p_json_path;
    return r;
 end;
@@ -246,6 +247,7 @@ function get_json_data_clob ( -- Return a value from json_data table as a clob.
    p_json_path in varchar2) return clob is 
    r clob;
 begin 
+   debug('get_json_data_clob: '||p_json_key||', '||p_json_path);
    select to_char(data_value) into r from json_data where json_key = p_json_key and json_path = p_json_path;
    return r;
 end;
@@ -255,6 +257,7 @@ function get_json_data_number ( -- Return a value from json_data table as a numb
    p_json_path in varchar2) return varchar2 is 
    r number;
 begin 
+   debug('get_json_data_number: '||p_json_key||', '||p_json_path);
    select to_number(data_value) into r from json_data where json_key = p_json_key and json_path = p_json_path;
    return r;
 end;

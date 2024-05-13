@@ -995,7 +995,8 @@ end;
 create or replace procedure debug2 (
    p_text in varchar2) is 
 begin
-   log_text(p_text=>p_text, p_type=>'debug', p_expires=>systimestamp - interval '1' day, p_notify=>0);
+   null;
+   -- log_text(p_text=>p_text, p_type=>'debug', p_expires=>systimestamp - interval '1' day, p_notify=>0);
 end;
 /
 

@@ -1,9 +1,7 @@
 create or replace package fuse as
 
-   randomness session_prompt.randomness%type default 1;
-   max_tokens session_prompt.max_tokens%type default 1024;
-   x clob;
-   verbose boolean := true;
+   tool_response clob;
+   verbose boolean := false;
 
    last_response_json clob;
    response clob;
@@ -19,6 +17,7 @@ create or replace package fuse as
    g_session_prompt session_prompt%rowtype;
    g_tool_group tool_group%rowtype;
    g_tool fuse_tool%rowtype;
+   -- Todo: not used
    g_default_chat_model_name provider_model.model_name%type := 'codellama/CodeLlama-13b-Instruct-hf';
    
 
@@ -31,12 +30,6 @@ create or replace package fuse as
 
    input_prompt varchar2(4000);
    
-   procedure make_rest_request(
-      p_request_id in varchar2,
-      p_api_url in varchar2,
-      p_api_key in varchar2,
-      p_data in clob);
-   
    procedure init;
 
    procedure set_session_model_provider (
@@ -44,6 +37,9 @@ create or replace package fuse as
 
    procedure set_image_session (
       p_session_name in varchar2);
+
+   function does_session_exist (
+      p_session_id in number) return boolean;
 
    procedure create_session (
       p_session_name in varchar2,
@@ -75,22 +71,13 @@ create or replace package fuse as
       p_prompt in varchar2,
       p_session_name in varchar2 default fuse.g_session.session_name);
 
-   procedure assistant (
-      p_prompt in varchar2,
-      p_session_name in varchar2 default fuse.g_session.session_name,
-      p_exclude in boolean default false);
-
    procedure mock (
       p_prompt in varchar2,
       p_session_name in varchar2 default fuse.g_session.session_name);
 
    procedure user (
       p_prompt in varchar2,
-      p_session_name in varchar2 default fuse.g_session.session_name,
-      p_schema in clob default null,
-      p_exclude in boolean default false,
-      p_randomness in number default null,
-      p_max_tokens in number default null);
+      p_session_name in varchar2 default fuse.g_session.session_name);
 
    procedure add_tool_group (
       p_tool_group in varchar2,
@@ -109,15 +96,15 @@ create or replace package fuse as
       p_parm2_desc varchar2 default null,
       p_parm2_req boolean default false);
 
-   procedure image (
-      p_prompt in varchar2,
-      p_session_name in varchar2 default fuse.g_image_session.session_name,
-      p_steps in number default 20,
-      p_images in number default 1,
-      p_width in number default 1024,
-      p_height in number default 1024,
-      p_seed in number default round(dbms_random.value(1,100)),
-      p_negative_prompt in varchar2 default null);
+   -- procedure image (
+   --    p_prompt in varchar2,
+   --    p_session_name in varchar2 default fuse.g_image_session.session_name,
+   --    p_steps in number default 20,
+   --    p_images in number default 1,
+   --    p_width in number default 1024,
+   --    p_height in number default 1024,
+   --    p_seed in number default round(dbms_random.value(1,100)),
+   --    p_negative_prompt in varchar2 default null);
 
 end;
 /
