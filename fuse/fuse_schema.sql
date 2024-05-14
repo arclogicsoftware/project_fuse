@@ -196,8 +196,10 @@ begin
       json_data clob default null,
       tool_call_id varchar2(64) default null,
       function_name varchar2(128) default null,
-      parm1 varchar2(512) default null,
-      parm2 varchar2(512) default null,
+      arg1 varchar2(512) default null,
+      val1 varchar2(512) default null,
+      arg2 varchar2(512) default null,
+      val2 varchar2(512) default null,
       -- When 1 will not be included in prompt reconstruction.
       exclude number default 0,
       created timestamp default systimestamp)';
@@ -282,14 +284,14 @@ begin
       tool_group_id number not null,
       function_name varchar2(512) not null,
       function_desc varchar2(512) not null,
-      parm1 varchar2(512) default null,
-      parm1_type varchar2(32) default null,
-      parm1_desc varchar2(512) default null,
-      parm1_req number default 0,
-      parm2 varchar2(512) default null,
-      parm2_type varchar2(32) default null,
-      parm2_desc varchar2(512) default null,
-      parm2_req number default 0,
+      arg1 varchar2(512) default null,
+      arg1_type varchar2(32) default null,
+      arg1_desc varchar2(512) default null,
+      arg1_req number default 0,
+      arg2 varchar2(512) default null,
+      arg2_type varchar2(32) default null,
+      arg2_desc varchar2(512) default null,
+      arg2_req number default 0,
       created timestamp default systimestamp)';
    end if;
    add_primary_key('fuse_tool', 'tool_id');

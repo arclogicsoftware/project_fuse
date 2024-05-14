@@ -87,14 +87,14 @@ create or replace package fuse as
       p_tool_group in varchar2,
       p_function_name in varchar2,
       p_function_desc in varchar2,
-      p_parm1 varchar2 default null,
-      p_parm1_type varchar2 default null,
-      p_parm1_desc varchar2 default null,
-      p_parm1_req boolean default false,
-      p_parm2 varchar2 default null,
-      p_parm2_type varchar2 default null,
-      p_parm2_desc varchar2 default null,
-      p_parm2_req boolean default false);
+      p_arg1 varchar2 default null,
+      p_arg1_type varchar2 default null,
+      p_arg1_desc varchar2 default null,
+      p_arg1_req boolean default false,
+      p_arg2 varchar2 default null,
+      p_arg2_type varchar2 default null,
+      p_arg2_desc varchar2 default null,
+      p_arg2_req boolean default false);
 
    -- procedure image (
    --    p_prompt in varchar2,

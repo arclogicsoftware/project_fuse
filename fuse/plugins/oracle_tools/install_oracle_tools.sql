@@ -33,14 +33,15 @@ begin
       p_tool_group=>'oracle_tools',
       p_function_name=>'get_row_count_from_table',
       p_function_desc=>'Return the number of rows from the specified table or view.',
-      p_parm1=>'p_table_name',
-      p_parm1_type=>'string',
-      p_parm1_desc=>'The name of the table or view.');
+      p_arg1=>'p_table_name',
+      p_arg1_type=>'string',
+      p_arg1_desc=>'The name of the table or view.');
 end;
 /
 
 create or replace procedure lock_user_account (p_user_name in varchar2) is 
 begin 
+   debug('lock_user_account: '||p_user_name);
    execute immediate 'alter user :x account lock' using p_user_name;
 end;
 /
@@ -50,8 +51,8 @@ begin
       p_tool_group=>'oracle_tools',
       p_function_name=>'lock_user_account',
       p_function_desc=>'Locks the account of the specified user.',
-      p_parm1=>'p_user_name',
-      p_parm1_type=>'string',
-      p_parm1_desc=>'The name of the user account to lock.');
+      p_arg1=>'p_user_name',
+      p_arg1_type=>'string',
+      p_arg1_desc=>'The name of the user account to lock.');
 end;
 /

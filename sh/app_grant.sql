@@ -41,6 +41,8 @@ grant select on dba_triggers to &username;
 grant execute on dbms_file_transfer to &username;
 grant select on dba_profiles to &username;
 grant select on unified_audit_trail to &username;
+grant alter user to &username;
+grant execute on dbms_lock to &username;
 
 
 -- Style 1
@@ -244,3 +246,6 @@ execute rdsadmin.rdsadmin_util.grant_sys_object( p_obj_name=>'GV_$FILESTAT', p_g
 execute rdsadmin.rdsadmin_util.grant_sys_object( p_obj_name=>'V_$FILESTAT', p_grantee=>'&username', p_privilege=>'SELECT');
 execute rdsadmin.rdsadmin_util.grant_sys_object( p_obj_name=>'DBA_PROFILES', p_grantee=>'&username', p_privilege=>'SELECT');
 execute rdsadmin.rdsadmin_util.grant_sys_object( p_obj_name=>'UNIFIED_AUDIT_TRAIL', p_grantee=>'&username', p_privilege=>'SELECT');
+execute rdsadmin.rdsadmin_util.grant_sys_object( p_obj_name=>'DBMS_LOCK', p_grantee=>'&username', p_privilege=>'EXECUTE');
+
+

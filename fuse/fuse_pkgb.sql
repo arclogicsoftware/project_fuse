@@ -157,6 +157,7 @@ function get_json_data (
        order by session_prompt_id;
    cursor tools (p_tool_group_id varchar2) is 
       select * from fuse_tool where tool_group_id=p_tool_group_id;
+   v_json_key json_data.json_key%type;
 begin 
    debug('get_json_data: '||p.session_prompt_id);
    apex_json.initialize_clob_output;
@@ -174,12 +175,12 @@ begin
                apex_json.write('name', t.function_name);
                apex_json.write('description', t.function_desc);
                apex_json.open_object('parameters');
-                  if t.parm1 is not null then 
+                  if t.arg1 is not null then 
                      apex_json.write('type', 'object');
                      apex_json.open_object('properties');
-                        apex_json.open_object(t.parm1);
-                           apex_json.write('type', t.parm1_type);
-                           apex_json.write('description', t.parm1_desc);
+                        apex_json.open_object(t.arg1);
+                           apex_json.write('type', t.arg1_type);
+                           apex_json.write('description', t.arg1_desc);
                         apex_json.close_object;
                      apex_json.close_object;
                   end if;
@@ -206,6 +207,24 @@ begin
             apex_json.write('name', prompt.function_name);
          end if;
          apex_json.close_object;
+      -- elsif prompt.prompt_role = 'assistant' and prompt.finish_reason = 'tool_calls' then 
+      --    v_json_key := 'fuse_assistant_'||prompt.session_prompt_id;
+      --    apex_json.open_object;
+      --    apex_json.write('role', 'assistant');
+      --    apex_json.open_array('tool_calls')
+      --       apex_json.open_object;
+      --       apex_json.write('id', app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.choices.1.message.tool_calls.1.id'));
+      --       apex_json.write('type', app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.choices.1.message.tool_calls.1.type'));
+      --          apex_json.open_object('function');
+      --          apex_json.write('name', app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.choices.1.message.tool_calls.1.function.name'));
+               
+      --             apex_json.open_object('arguments', 'x');
+      --             apex_json.write('arg1', 'val1');
+      --             apex_json.write('arg2', 'val2');
+      --             apex_json.close_object;
+      --          apex_json.close_object;
+      --       apex_json.close_object;
+      --    apex_json.close_object;
       end if;
    end loop;
    apex_json.close_array;
@@ -541,15 +560,16 @@ begin
    u.start_time := systimestamp;
    u.prompt_role := 'user';
    u.prompt := p_prompt;
-   u.json_data := get_json_data(u);
    u.total_tokens := 0;
    u.end_time := systimestamp;
    u.elapsed_seconds := secs_between_timestamps(u.start_time, u.end_time);
    u.finish_reason := 'success';
    insert into session_prompt values u;
+   u.json_data := get_json_data(u);
+   update session_prompt set row = u where session_prompt_id = u.session_prompt_id;
    commit;
 
-   debug('user: Inserted u')
+   debug('user: Inserted u');
 
    -- assistant will respond
    a.session_prompt_id := seq_session_prompt_id.nextval;
@@ -602,18 +622,20 @@ begin
       if app_json.does_json_data_path_exist(p_json_key=>v_json_key, p_json_path=>'root.choices.1.message.tool_calls.1.function.arguments') then 
          v_args := app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.choices.1.message.tool_calls.1.function.arguments');
       end if;
-      if fuse.g_tool.parm1 is not null then 
-         t.parm1 := json_value(v_args, '$.'||fuse.g_tool.parm1);
+      if fuse.g_tool.arg1 is not null then 
+         t.arg1 := fuse.g_tool.arg1;
+         t.val1 := json_value(v_args, '$.'||t.arg1);
       end if;
-      if fuse.g_tool.parm2 is not null then 
-         t.parm2 := json_value(v_args, '$.'||fuse.g_tool.parm2);
+      if fuse.g_tool.arg2 is not null then 
+         t.arg2 := fuse.g_tool.arg2;
+         t.val2 := json_value(v_args, '$.'||t.arg2);
       end if;
-      if t.parm1 is null and t.parm2 is null then 
+      if t.arg1 is null and t.arg2 is null then 
          execute immediate 'begin '||t.function_name||'; end;';
-      elsif t.parm1 is not null and t.parm2 is null then 
-         execute immediate 'begin '||t.function_name||'(:x); end;' using t.parm1;
+      elsif t.arg1 is not null and t.arg2 is null then 
+         execute immediate 'begin '||t.function_name||'(:x); end;' using t.val1;
       else
-         execute immediate 'begin '||t.function_name||'(:x, :y); end;' using t.parm1, t.parm2;
+         execute immediate 'begin '||t.function_name||'(:x, :y); end;' using t.val1, t.val2;
       end if;
       t.prompt := fuse.tool_response;
       t.end_time := systimestamp;
@@ -626,9 +648,10 @@ begin
       apex_json.write('name', t.function_name);
       apex_json.write('content', t.prompt);
       apex_json.close_object;
+      insert into session_prompt values t;
       t.json_data := get_json_data(t);
       t.finish_reason := 'success';
-      insert into session_prompt values t;
+      update session_prompt set row = t where session_prompt_id = t.session_prompt_id;
       commit;
 
       -- Update the assistent with the results of the call
@@ -677,23 +700,23 @@ procedure add_tool (
    p_tool_group in varchar2,
    p_function_name in varchar2,
    p_function_desc in varchar2,
-   p_parm1 varchar2 default null,
-   p_parm1_type varchar2 default null,
-   p_parm1_desc varchar2 default null,
-   p_parm1_req boolean default false,
-   p_parm2 varchar2 default null,
-   p_parm2_type varchar2 default null,
-   p_parm2_desc varchar2 default null,
-   p_parm2_req boolean default false) is 
-   v_parm1_req number := 0;
-   v_parm2_req number := 0;
+   p_arg1 varchar2 default null,
+   p_arg1_type varchar2 default null,
+   p_arg1_desc varchar2 default null,
+   p_arg1_req boolean default false,
+   p_arg2 varchar2 default null,
+   p_arg2_type varchar2 default null,
+   p_arg2_desc varchar2 default null,
+   p_arg2_req boolean default false) is 
+   v_arg1_req number := 0;
+   v_arg2_req number := 0;
    v_tool_group_id number;
 begin
-   if p_parm1_req then 
-      v_parm1_req := 1;
+   if p_arg1_req then 
+      v_arg1_req := 1;
    end if;
-   if p_parm2_req then 
-      v_parm2_req := 1;
+   if p_arg2_req then 
+      v_arg2_req := 1;
    end if;
 
    select tool_group_id into v_tool_group_id 
@@ -704,26 +727,26 @@ begin
       tool_group_id, 
       function_name, 
       function_desc,
-      parm1,
-      parm1_type,
-      parm1_desc,
-      parm1_req,
-      parm2,
-      parm2_type,
-      parm2_desc,
-      parm2_req) 
+      arg1,
+      arg1_type,
+      arg1_desc,
+      arg1_req,
+      arg2,
+      arg2_type,
+      arg2_desc,
+      arg2_req) 
       values (
       v_tool_group_id, 
       p_function_name, 
       p_function_desc,
-      p_parm1,
-      p_parm1_type,
-      p_parm1_desc,
-      v_parm1_req,
-      p_parm2,
-      p_parm2_type,
-      p_parm2_desc,
-      v_parm2_req);
+      p_arg1,
+      p_arg1_type,
+      p_arg1_desc,
+      v_arg1_req,
+      p_arg2,
+      p_arg2_type,
+      p_arg2_desc,
+      v_arg2_req);
 exception
    when others then
       raise_application_error(-20000, 'add_tool: '||dbms_utility.format_error_stack);
