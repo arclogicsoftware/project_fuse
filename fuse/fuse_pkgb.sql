@@ -552,8 +552,6 @@ begin
    update session_prompt set row = u where session_prompt_id = u.session_prompt_id;
    commit;
 
-   debug('user: Inserted u');
-
    -- assistant will respond
    a.session_prompt_id := seq_session_prompt_id.nextval;
    a.created := systimestamp;
@@ -563,8 +561,6 @@ begin
    a.start_time := systimestamp;
    a.prompt_role := 'assistant';
    insert into session_prompt values a;
-
-   debug('user: Inserted a');
 
    a.json_data := make_rest_request (
       p_api_url=>fuse.g_model.api_url,
@@ -632,13 +628,6 @@ begin
       t.end_time := systimestamp;
       t.elapsed_seconds := secs_between_timestamps(t.start_time, t.end_time);
       t.total_tokens := 0;
-      -- apex_json.initialize_clob_output;
-      -- apex_json.open_object;
-      -- apex_json.write('tool_call_id', t.tool_call_id);
-      -- apex_json.write('role', 'tool');
-      -- apex_json.write('name', t.function_name);
-      -- apex_json.write('content', t.prompt);
-      -- apex_json.close_object;
       insert into session_prompt values t;
       t.json_data := get_json_data(t);
       t.finish_reason := 'success';
@@ -742,29 +731,6 @@ exception
    when others then
       raise_application_error(-20000, 'add_tool: '||dbms_utility.format_error_stack);
 end;
-
--- procedure replay (
---    p_session_name in varchar2 default null) is
---    v_session_id number;
---    cursor prompts (p_session_id in number) is
---    select * from session_prompt 
---     where session_id = p_session_id
---     order by session_prompt_id;
---    v_replay_session_id fuse_session.session_id%type;
--- begin
---    select max(session_id) into v_replay_session_id from fuse_session where session_name = p_session_name;
---    create_session(p_session_name);
---    for p in prompts(v_replay_session_id) loop
---       if p.prompt_role = 'system' then
---          system(p.prompt);
---       elsif p.prompt_role = 'user' then
---          user(p.prompt, p.response_id);
---       elsif p.prompt_role in ('assistant', 'tool') then
---          -- Do nothing
---          null;
---       end if;
---    end loop;
--- end;
 
 end;
 /
