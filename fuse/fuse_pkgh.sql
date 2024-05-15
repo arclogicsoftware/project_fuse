@@ -19,7 +19,6 @@ create or replace package fuse as
    g_tool fuse_tool%rowtype;
    -- Todo: not used
    g_default_chat_model_name provider_model.model_name%type := 'codellama/CodeLlama-13b-Instruct-hf';
-   
 
    -- Used for images
    g_image_provider fuse_provider%rowtype;
@@ -68,7 +67,7 @@ create or replace package fuse as
       p_assertion in varchar2) return boolean;
 
    procedure system (
-      p_prompt in varchar2,
+      p_prompt in session_prompt.prompt%type,
       p_session_name in varchar2 default fuse.g_session.session_name);
 
    procedure mock (
@@ -76,6 +75,10 @@ create or replace package fuse as
       p_session_name in varchar2 default fuse.g_session.session_name);
 
    procedure user (
+      p_prompt in varchar2,
+      p_session_name in varchar2 default fuse.g_session.session_name);
+
+   procedure chat (
       p_prompt in varchar2,
       p_session_name in varchar2 default fuse.g_session.session_name);
 

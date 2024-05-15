@@ -148,7 +148,6 @@ begin
    select * into fuse.g_tool from fuse_tool where function_name = p_function_name;
 end;
 
-
 procedure build_tool_group_json (
    p_tool_group_id in number) is
    v_json_key json_data.json_key%type;
@@ -484,19 +483,23 @@ begin
 end;
 
 procedure system (
-   p_prompt in varchar2,
+   p_prompt in session_prompt.prompt%type,
    p_session_name in varchar2 default fuse.g_session.session_name) is
+   v_prompt session_prompt.prompt%type := p_prompt;
 begin
    debug('system: '||p_prompt);
    set_session_model_provider(p_session_name);
    assert_not_image_model;
+   if lower(substr(v_prompt, 1, 7)) = 'system:' then 
+      v_prompt := extract_text(substr(v_prompt, instr(v_prompt, ':')+1), '[', ']');
+   end if;
    apex_json.initialize_clob_output;
    apex_json.open_object;
    apex_json.write('role', 'system');
-   apex_json.write('content', p_prompt);
+   apex_json.write('content', v_prompt);
    apex_json.close_object;
    insert into session_prompt (session_prompt_id, session_id, prompt_role, prompt, end_time, finish_reason) 
-      values (seq_session_prompt_id.nextval, fuse.g_session.session_id, 'system', p_prompt, systimestamp, 'success');
+      values (seq_session_prompt_id.nextval, fuse.g_session.session_id, 'system', v_prompt, systimestamp, 'success');
 end;
 
 procedure mock (
@@ -520,6 +523,20 @@ begin
    apex_json.write('content', p_prompt);
    apex_json.close_object;
    return apex_json.get_clob_output;
+end;
+
+procedure chat (
+   p_prompt in varchar2,
+   p_session_name in varchar2 default fuse.g_session.session_name) is
+begin
+   debug('chat: '||p_prompt);
+   set_session_model_provider(p_session_name);
+   assert_not_image_model;
+   if lower(p_prompt) like 'system: %' then
+      system(p_prompt, p_session_name);
+   else
+      user(p_prompt, p_session_name);
+   end if;
 end;
 
 procedure user (
