@@ -148,15 +148,50 @@ begin
    select * into fuse.g_tool from fuse_tool where function_name = p_function_name;
 end;
 
+
+procedure build_tool_group_json (
+   p_tool_group_id in number) is
+   v_json_key json_data.json_key%type;
+   v_args varchar2(512);
+   cursor tools (p_tool_group_id varchar2) is 
+      select * from fuse_tool where tool_group_id=p_tool_group_id;
+begin
+   apex_json.write('tool_choice', 'auto');
+   apex_json.open_array('tools');
+   for t in tools(p_tool_group_id) loop 
+      apex_json.open_object;
+      apex_json.write('type', 'function');
+         apex_json.open_object('function');
+            apex_json.write('name', t.function_name);
+            apex_json.write('description', t.function_desc);
+            apex_json.open_object('parameters');
+               if t.arg1 is not null then 
+                  apex_json.write('type', 'object');
+                  apex_json.open_object('properties');
+                     apex_json.open_object(t.arg1);
+                        apex_json.write('type', t.arg1_type);
+                        apex_json.write('description', t.arg1_desc);
+                     apex_json.close_object;
+                  apex_json.close_object;
+               end if;
+               apex_json.open_array('required');
+               apex_json.close_array;
+            apex_json.close_object;
+         apex_json.close_object;
+      apex_json.close_object;
+   end loop;
+   apex_json.close_array;
+end;
+
 function get_json_data (
    p_session_prompt in out session_prompt%rowtype) return clob is
    p session_prompt%rowtype := p_session_prompt;
    cursor prompts (p_session_id number) is
       select * from session_prompt
-       where session_id=p_session_id and exclude=0
+       where session_id=p_session_id 
+         and exclude=0
+         and prompt is not null
        order by session_prompt_id;
-   cursor tools (p_tool_group_id varchar2) is 
-      select * from fuse_tool where tool_group_id=p_tool_group_id;
    v_json_key json_data.json_key%type;
 begin 
    debug('get_json_data: '||p.session_prompt_id);
@@ -166,51 +201,19 @@ begin
    apex_json.write('max_tokens', fuse.g_session.max_tokens);
    apex_json.write('temperature', fuse.g_session.randomness);
    if fuse.g_session.tool_group_id is not null and p.prompt_role in ('user', 'mock', 'assistant') then 
-      apex_json.write('tool_choice', 'auto');
-      apex_json.open_array('tools');
-      for t in tools(fuse.g_session.tool_group_id) loop 
-         apex_json.open_object;
-         apex_json.write('type', 'function');
-            apex_json.open_object('function');
-               apex_json.write('name', t.function_name);
-               apex_json.write('description', t.function_desc);
-               apex_json.open_object('parameters');
-                  if t.arg1 is not null then 
-                     apex_json.write('type', 'object');
-                     apex_json.open_object('properties');
-                        apex_json.open_object(t.arg1);
-                           apex_json.write('type', t.arg1_type);
-                           apex_json.write('description', t.arg1_desc);
-                        apex_json.close_object;
-                     apex_json.close_object;
-                  end if;
-                  apex_json.open_array('required');
-                  apex_json.close_array;
-               apex_json.close_object;
-            apex_json.close_object;
-         apex_json.close_object;
-      end loop;
-      apex_json.close_array;
+      build_tool_group_json(fuse.g_session.tool_group_id);
    end if;
    apex_json.open_array('messages');
    for prompt in prompts(fuse.g_session.session_id) loop 
       debug('prompt: '||prompt.prompt_role||': '||prompt.prompt);
-      if prompt.prompt is not null then
-         apex_json.open_object;
-         if prompt.prompt_role in ('user', 'assistant', 'system') then
-            apex_json.write('role', prompt.prompt_role);
-            apex_json.write('content', prompt.prompt);
-         -- 
-         -- This is a response from invoking a tool.
-         --
-         elsif prompt.prompt_role in ('tool') then 
-            apex_json.write('role', 'tool');
-            apex_json.write('content', prompt.prompt);
-            apex_json.write('tool_call_id', prompt.tool_call_id);
-            apex_json.write('name', prompt.function_name);
-         end if;
-         apex_json.close_object;
+      apex_json.open_object;
+      apex_json.write('role', prompt.prompt_role);
+      apex_json.write('content', prompt.prompt);
+      if prompt.prompt_role in ('tool') then 
+         apex_json.write('tool_call_id', prompt.tool_call_id);
+         apex_json.write('name', prompt.function_name);
       end if;
+      apex_json.close_object;
    end loop;
    apex_json.close_array;
    apex_json.close_object;
