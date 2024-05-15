@@ -22,7 +22,6 @@ comment on table fuse_provider is 'Each row contains the name of a provider.';
 
 begin
    insert into fuse_provider (provider_name) values ('together');
-   insert into fuse_provider (provider_name) values ('anthropic');
    insert into fuse_provider (provider_name) values ('openai');
    insert into fuse_provider (provider_name) values ('groq');
 end;
@@ -98,16 +97,6 @@ begin
    -- The docs here for images say to use the completions end point (https://docs.together.ai/docs/inference-models).
    -- I have tested both and they both work without any modification to Fuse code.
    add_model('stabilityai/stable-diffusion-2-1', 'image', 'https://api.together.xyz/v1/completions', v_provider, 0);
-end;
-/
-
-declare
-   v_provider fuse_provider.provider_name%type := 'anthropic';
-   v_api_url provider_model.api_url%type := 'https://api.anthropic.com/v1/messages';
-begin
-   add_model('claude-3-opus-20240229', 'chat', v_api_url, v_provider, 200000);
-   add_model('claude-3-sonnet-20240229', 'chat', v_api_url, v_provider, 200000);
-   add_model('claude-3-haiku-20240307', 'chat', v_api_url, v_provider, 200000);
 end;
 /
 

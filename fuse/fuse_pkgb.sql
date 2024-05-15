@@ -200,6 +200,9 @@ begin
          if prompt.prompt_role in ('user', 'assistant', 'system') then
             apex_json.write('role', prompt.prompt_role);
             apex_json.write('content', prompt.prompt);
+         -- 
+         -- This is a response from invoking a tool.
+         --
          elsif prompt.prompt_role in ('tool') then 
             apex_json.write('role', 'tool');
             apex_json.write('content', prompt.prompt);
@@ -207,24 +210,6 @@ begin
             apex_json.write('name', prompt.function_name);
          end if;
          apex_json.close_object;
-      -- elsif prompt.prompt_role = 'assistant' and prompt.finish_reason = 'tool_calls' then 
-      --    v_json_key := 'fuse_assistant_'||prompt.session_prompt_id;
-      --    apex_json.open_object;
-      --    apex_json.write('role', 'assistant');
-      --    apex_json.open_array('tool_calls')
-      --       apex_json.open_object;
-      --       apex_json.write('id', app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.choices.1.message.tool_calls.1.id'));
-      --       apex_json.write('type', app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.choices.1.message.tool_calls.1.type'));
-      --          apex_json.open_object('function');
-      --          apex_json.write('name', app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.choices.1.message.tool_calls.1.function.name'));
-               
-      --             apex_json.open_object('arguments', 'x');
-      --             apex_json.write('arg1', 'val1');
-      --             apex_json.write('arg2', 'val2');
-      --             apex_json.close_object;
-      --          apex_json.close_object;
-      --       apex_json.close_object;
-      --    apex_json.close_object;
       end if;
    end loop;
    apex_json.close_array;
@@ -277,7 +262,6 @@ begin
    select * into fuse.g_provider from fuse_provider where provider_id=fuse.g_model.provider_id;
    fuse.g_model.api_key := 
       case fuse.g_provider.provider_name
-         when 'anthropic' then fuse_config.anthropic_api_key
          when 'openai' then fuse_config.openai_api_key
          when 'together' then fuse_config.together_api_key
          when 'groq' then fuse_config.groq_api_key
@@ -307,7 +291,6 @@ begin
    select * into fuse.g_image_provider from fuse_provider where provider_id=fuse.g_image_model.provider_id;
    fuse.g_image_model.api_key := 
       case fuse.g_image_provider.provider_name
-         when 'anthropic' then fuse_config.anthropic_api_key
          when 'openai' then fuse_config.openai_api_key
          when 'together' then fuse_config.together_api_key
          when 'groq' then fuse_config.groq_api_key
@@ -599,6 +582,22 @@ begin
       p_error_message_path=>'root.error.message');
    a.total_tokens := app_json.get_json_data_number(p_json_key=>v_json_key, p_json_path=>'root.usage.total_tokens');
    a.finish_reason := app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.choices.1.finish_reason');
+   if a.finish_reason = 'tool_calls' then 
+      a.function_name := app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.choices.1.message.tool_calls.1.function.name');
+      a.tool_call_id := app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.choices.1.message.tool_calls.1.id');
+      set_tool(a.function_name);
+      if app_json.does_json_data_path_exist(p_json_key=>v_json_key, p_json_path=>'root.choices.1.message.tool_calls.1.function.arguments') then 
+         v_args := app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.choices.1.message.tool_calls.1.function.arguments');
+      end if;
+      if fuse.g_tool.arg1 is not null then 
+         a.arg1 := fuse.g_tool.arg1;
+         a.val1 := json_value(v_args, '$.'||a.arg1);
+      end if;
+      if fuse.g_tool.arg2 is not null then 
+         a.arg2 := fuse.g_tool.arg2;
+         a.val2 := json_value(v_args, '$.'||a.arg2);
+      end if;
+   end if;
    a.end_time := systimestamp;
    a.elapsed_seconds := secs_between_timestamps(a.start_time, a.end_time);
    if a.finish_reason != 'tool_calls' then 
@@ -609,7 +608,6 @@ begin
 
    -- assistant possibly came back with a tool call
    if a.finish_reason = 'tool_calls' then 
-      set_tool(app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.choices.1.message.tool_calls.1.function.name'));
       t.session_prompt_id := seq_session_prompt_id.nextval;
       t.created := systimestamp;
       t.exclude := 0;
@@ -617,37 +615,30 @@ begin
       t.start_time := systimestamp;
       t.prompt_role := 'tool';
       t.prompt := null;
-      t.function_name := app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.choices.1.message.tool_calls.1.function.name');
-      t.tool_call_id := app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.choices.1.message.tool_calls.1.id');
-      if app_json.does_json_data_path_exist(p_json_key=>v_json_key, p_json_path=>'root.choices.1.message.tool_calls.1.function.arguments') then 
-         v_args := app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.choices.1.message.tool_calls.1.function.arguments');
-      end if;
-      if fuse.g_tool.arg1 is not null then 
-         t.arg1 := fuse.g_tool.arg1;
-         t.val1 := json_value(v_args, '$.'||t.arg1);
-      end if;
-      if fuse.g_tool.arg2 is not null then 
-         t.arg2 := fuse.g_tool.arg2;
-         t.val2 := json_value(v_args, '$.'||t.arg2);
-      end if;
-      if t.arg1 is null and t.arg2 is null then 
-         execute immediate 'begin '||t.function_name||'; end;';
-      elsif t.arg1 is not null and t.arg2 is null then 
-         execute immediate 'begin '||t.function_name||'(:x); end;' using t.val1;
+      t.arg1 := a.arg1;
+      t.arg2 := a.arg2;
+      t.function_name := a.function_name;
+      t.tool_call_id := a.tool_call_id;
+      t.val1 := a.val1;
+      t.val2 := a.val2;
+      if a.arg1 is null and a.arg2 is null then 
+         execute immediate 'begin '||a.function_name||'; end;';
+      elsif a.arg1 is not null and t.arg2 is null then 
+         execute immediate 'begin '||a.function_name||'(:x); end;' using a.val1;
       else
-         execute immediate 'begin '||t.function_name||'(:x, :y); end;' using t.val1, t.val2;
+         execute immediate 'begin '||a.function_name||'(:x, :y); end;' using a.val1, a.val2;
       end if;
       t.prompt := fuse.tool_response;
       t.end_time := systimestamp;
       t.elapsed_seconds := secs_between_timestamps(t.start_time, t.end_time);
       t.total_tokens := 0;
-      apex_json.initialize_clob_output;
-      apex_json.open_object;
-      apex_json.write('tool_call_id', t.tool_call_id);
-      apex_json.write('role', 'tool');
-      apex_json.write('name', t.function_name);
-      apex_json.write('content', t.prompt);
-      apex_json.close_object;
+      -- apex_json.initialize_clob_output;
+      -- apex_json.open_object;
+      -- apex_json.write('tool_call_id', t.tool_call_id);
+      -- apex_json.write('role', 'tool');
+      -- apex_json.write('name', t.function_name);
+      -- apex_json.write('content', t.prompt);
+      -- apex_json.close_object;
       insert into session_prompt values t;
       t.json_data := get_json_data(t);
       t.finish_reason := 'success';

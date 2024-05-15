@@ -42,7 +42,7 @@ end;
 create or replace procedure lock_user_account (p_user_name in varchar2) is 
 begin 
    debug('lock_user_account: '||p_user_name);
-   execute immediate 'alter user :x account lock' using p_user_name;
+   execute immediate 'alter user '||p_user_name||' account lock';
 end;
 /
 
