@@ -490,16 +490,23 @@ begin
    debug('system: '||p_prompt);
    set_session_model_provider(p_session_name);
    assert_not_image_model;
-   if lower(substr(v_prompt, 1, 7)) = 'system:' then 
-      v_prompt := extract_text(substr(v_prompt, instr(v_prompt, ':')+1), '[', ']');
-   end if;
-   apex_json.initialize_clob_output;
-   apex_json.open_object;
-   apex_json.write('role', 'system');
-   apex_json.write('content', v_prompt);
-   apex_json.close_object;
    insert into session_prompt (session_prompt_id, session_id, prompt_role, prompt, end_time, finish_reason) 
       values (seq_session_prompt_id.nextval, fuse.g_session.session_id, 'system', v_prompt, systimestamp, 'success');
+end;
+
+procedure assistant (
+   p_prompt in session_prompt.prompt%type,
+   p_session_name in varchar2 default fuse.g_session.session_name) is
+   v_prompt session_prompt.prompt%type := p_prompt;
+begin
+   debug('assistant: '||p_prompt);
+   set_session_model_provider(p_session_name);
+   assert_not_image_model;
+   if lower(substr(v_prompt, 1, 10)) = 'assistant:' then 
+      v_prompt := extract_text(substr(v_prompt, instr(v_prompt, ':')+1), '[', ']');
+   end if;
+   insert into session_prompt (session_prompt_id, session_id, prompt_role, prompt, end_time, finish_reason) 
+      values (seq_session_prompt_id.nextval, fuse.g_session.session_id, 'assistant', v_prompt, systimestamp, 'success');
 end;
 
 procedure mock (
@@ -508,8 +515,8 @@ procedure mock (
 begin
    set_session_model_provider(p_session_name);
    assert_not_image_model;
-   insert into session_prompt (session_id, prompt_role, prompt, end_time) 
-      values (fuse.g_session.session_id, 'mock', p_prompt, systimestamp);
+   insert into session_prompt (session_prompt_id, session_id, prompt_role, prompt, end_time) 
+      values (seq_session_prompt_id.nextval, fuse.g_session.session_id, 'mock', p_prompt, systimestamp);
    dbms_output.put_line('mock: '||p_prompt);
 end;
 
@@ -525,6 +532,59 @@ begin
    return apex_json.get_clob_output;
 end;
 
+function replace_template_parameters (
+   p_session_id in number,
+   p_prompt in session_prompt.prompt%type) return clob is 
+   r clob := p_prompt;
+   v_param_count number;
+   v_param_name json_data.data_key%type;
+   v_param_value json_data.data_value%type;
+   i number;
+   v_json_key json_data.json_key%type := 'session_template_'||p_session_id;
+begin
+   select count(*) into v_param_count from json_data where json_key=v_json_key and json_path = 'root.parameters';
+   for i in 1 .. v_param_count loop
+      v_param_name := app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.parameters.'||i||'.name');
+      v_param_value := app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.parameters.'||i||'.value');
+      r := replace(r, '##'||v_param_name||'##', v_param_value);
+   end loop;
+   return r;
+end;
+
+procedure handle_template (
+   p_session_id in number) is
+   v_json_key json_data.json_key%type := 'session_template_'||p_session_id;
+   v_message_count number;
+   v_role session_prompt.prompt_role%type;
+   v_content session_prompt.prompt%type;
+   i number;
+begin
+   debug('handle_template: '||p_session_id);
+   if app_json.does_json_data_path_exist(p_json_key=>v_json_key, p_json_path=>'root.system') then 
+      fuse.system(
+         replace_template_parameters(
+            p_session_id, 
+            app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.system')));
+   end if;
+   select count(*) into v_message_count from json_data where json_key=v_json_key and json_path = 'root.messages';
+   for i in 1 .. v_message_count loop
+      v_role := app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.messages.'||i||'.role');
+      v_content := app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.messages.'||i||'.content');
+      v_content := replace_template_parameters(p_session_id, v_content);
+      if v_role = 'system' then 
+         fuse.system(v_content);
+      elsif v_role = 'assistant' then
+         fuse.assistant(v_content);
+      else
+         fuse.user(v_content);
+      end if;
+   end loop;
+exception
+   when others then
+      raise_application_error(-20000, 'handle_template: '||dbms_utility.format_error_stack);
+
+end;
+
 procedure chat (
    p_prompt in varchar2,
    p_session_name in varchar2 default fuse.g_session.session_name) is
@@ -532,8 +592,21 @@ begin
    debug('chat: '||p_prompt);
    set_session_model_provider(p_session_name);
    assert_not_image_model;
-   if lower(p_prompt) like 'system: %' then
-      system(p_prompt, p_session_name);
+   if lower(substr(p_prompt, 1, 7)) = '/system' then
+      system(trim(substr(p_prompt, 8)), p_session_name);
+   elsif lower(substr(p_prompt, 1, 5)) = '/user' then
+      user(p_prompt, p_session_name);
+   elsif lower(substr(p_prompt, 1, 5)) = '/mock' then
+      mock(trim(substr(p_prompt, 6)), p_session_name);
+   elsif lower(substr(p_prompt, 1, 10)) = '/assistant' then
+      assistant(p_prompt, p_session_name);
+   elsif lower(substr(p_prompt, 1, 9)) = '/template' then
+      app_json.json_to_data_table(
+         p_json_data=>trim(substr(p_prompt, 10)),
+         p_json_key=>'session_template_'||fuse.g_session.session_id);
+      insert into session_prompt (session_prompt_id, session_id, prompt_role, prompt, end_time, exclude) 
+      values (seq_session_prompt_id.nextval, fuse.g_session.session_id, 'template', trim(substr(p_prompt, 10)), systimestamp, 1);
+      handle_template(fuse.g_session.session_id);
    else
       user(p_prompt, p_session_name);
    end if;
@@ -684,9 +757,7 @@ begin
       a.elapsed_seconds := secs_between_timestamps(a.start_time, a.end_time);
       update session_prompt set row = a where session_prompt_id = a.session_prompt_id;
       commit;
-
    end if;
-
 end;
 
 procedure add_tool_group (

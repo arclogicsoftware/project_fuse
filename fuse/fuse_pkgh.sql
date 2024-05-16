@@ -70,6 +70,10 @@ create or replace package fuse as
       p_prompt in session_prompt.prompt%type,
       p_session_name in varchar2 default fuse.g_session.session_name);
 
+   procedure assistant (
+      p_prompt in session_prompt.prompt%type,
+      p_session_name in varchar2 default fuse.g_session.session_name);
+
    procedure mock (
       p_prompt in varchar2,
       p_session_name in varchar2 default fuse.g_session.session_name);
