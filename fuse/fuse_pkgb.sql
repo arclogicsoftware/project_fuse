@@ -560,13 +560,17 @@ procedure handle_template (
    i number;
 begin
    debug('handle_template: '||p_session_id);
+
+   -- If the template has a system message, process it.
    if app_json.does_json_data_path_exist(p_json_key=>v_json_key, p_json_path=>'root.system') then 
       fuse.system(
          replace_template_parameters(
             p_session_id, 
             app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.system')));
    end if;
+
    select count(*) into v_message_count from json_data where json_key=v_json_key and json_path = 'root.messages';
+
    for i in 1 .. v_message_count loop
       v_role := app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.messages.'||i||'.role');
       v_content := app_json.get_json_data_string(p_json_key=>v_json_key, p_json_path=>'root.messages.'||i||'.content');
@@ -579,6 +583,7 @@ begin
          fuse.user(v_content);
       end if;
    end loop;
+   
 exception
    when others then
       raise_application_error(-20000, 'handle_template: '||dbms_utility.format_error_stack);
@@ -601,6 +606,7 @@ begin
    elsif lower(substr(p_prompt, 1, 10)) = '/assistant' then
       assistant(p_prompt, p_session_name);
    elsif lower(substr(p_prompt, 1, 9)) = '/template' then
+      -- The body of the post is a json template to process.
       app_json.json_to_data_table(
          p_json_data=>trim(substr(p_prompt, 10)),
          p_json_key=>'session_template_'||fuse.g_session.session_id);
