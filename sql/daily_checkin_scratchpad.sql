@@ -13,7 +13,6 @@ declare
 
 select created "G-DATE" from dba_objects where object_name='TEST_TABLE';
 
-
 select username,
        count(*),
        last_call_days
@@ -26,6 +25,8 @@ group
      last_call_days
 order by 2 desc;
 
+select * from stat_table 
+ where str_avg_list(feb||','||mar||','||apr) < may*.8 order by decode(str_avg_list(feb||','||mar||','||apr), 0, 999, may/str_avg_list(feb||','||mar||','||apr)) desc;
 
 select username, module, program, trunc(logon_time), count(*) 
   from v$session 
@@ -41,6 +42,12 @@ select count(*), zmdti from proddta.f01131m group by zmdti order by 2 desc;
 select * from jde_run_batch_summary;
 select * from jde_run_batch_monthly;
 select * from jde_run_batch_daily;
+
+select status, job_name, trunc(log_date), count(*) 
+  from DBA_SCHEDULER_JOB_RUN_DETAILS 
+ where trunc(log_date) >= systimestamp - interval '1' month and status='FAILED'
+ group 
+    by status, job_name, trunc(log_date) order by 3 desc, 2, 1;
 
 select sequence#,
        to_char(completion_time, 'YYYY-MM-DD HH24:MI') completion_time,
@@ -78,14 +85,13 @@ select count(*), status, encrypted from dba_tablespaces group by status, encrypt
 select * from dba_tablespaces where status='OFFLINE';
 select * from  dba_encrypted_columns;
 
-select * from obj_size_data order by oct desc;
+select * from obj_size_data order by apr desc;
 
-select round(sum(jun)/1024, 1) jun, 
-       round(sum(jul)/1024, 1) jul, 
-       round(sum(aug)/1024, 1) aug, 
-       round(sum(sep)/1024, 1) sep,
-       round(sum(oct)/1024, 1) oct
-  from obj_size_data;
+select to_char(sysdate, 'HH24') from dual;
+select * from sql_log_hourly_crosstab;
+select * from sql_log_daily_crosstab;
+select * from sql_log_monthly_crosstab;
+select * from sql_log_weekly_crosstab where hrs0_elap_this_wk > hrs1 or hrs0_elap_this_wk > hrs2;
 
 -- Can be used to spot events, estaimte amount of change going on in the database. 
 select * from archive_log_dist order by 1 desc;
@@ -116,6 +122,7 @@ begin
 end;
 /
 
+select processid, sid, serial#, username, machine, sql_id, round(last_call_et/60/60, 1) call_running_for_hours, module, logon_time from (
 select b.spid processid,
        a.*
   from gv$session a,
@@ -125,9 +132,11 @@ select b.spid processid,
    and a.status='ACTIVE' 
    and a.type != 'BACKGROUND' 
    and a.module not in ('XStream') 
-   and a.last_call_et > 600;
+   and a.last_call_et > 600);
 
-select * from gv$sql where sql_id='5j6hhczpfgv51';
+select * from gv$sql where sql_id='d3nkkzv7fj5j0';
+
+select * from sql_log where sql_id='d3nkkzv7fj5j0' order by update_time desc;
 
 select * from log_table order by 2 desc;
 delete from log_table;
@@ -258,6 +267,8 @@ select * from obj_size_data where segment_name like '%PERF%' or segment_name lik
 -- Looking for large objects that maybe backup tables.
 select * from obj_size_data where jul+aug+sep+oct=0 and segment_type='TABLE' order by last_size desc;
 
+select * from obj_size_data where segment_name='F9312T';
+
 -- Looking for invalid objects.
 select * from dba_objects where status != 'VALID' order by created desc;
 
@@ -276,6 +287,12 @@ select * from v$parameter
     or name like '%memory%'
     or name like '%sga%'
     or name like '%_size' order by name;
+
+alter system flush shared_pool;
+
+select * from v$parameter where upper(name) in ('OPTIMIZER_USE_SQL_PLAN_BASELINES', 'OPTIMIZER_CAPTURE_SQL_PLAN_BASELINES', 'STATISTICS_LEVEL');
+select * from dba_sql_profiles;
+select * from dba_sql_plan_baselines;
 
 select * from dba_autotask_client order by 1;
 
@@ -314,9 +331,62 @@ alter database tempfile '+DATA/PRDCDB1/650CA449A619EEB4E0532746010A1A49/TEMPFILE
 
 select * from rman_status order by start_time desc;
 
-select * from rman_backup_job_details order by start_time desc;
+select * from v$rman_backup_job_details where status = 'COMPLETED' order by start_time desc;
+
+set pages 1000
+set lines 180
+column start_time format a16
+column output_gb format 999,999.99
+column output_device_type format a20
+column status format a10
+column elapsed_minutes format 999,999.99
+column input_type format a20
+
+select to_char(start_time, 'YYYY-MM-DD HH24:MI') start_time,
+       round(output_bytes/1024/1024/1024) output_gb,
+       output_device_type,
+       status,
+       round(elapsed_seconds/60) elapsed_minutes,
+       input_type
+       from v$rman_backup_job_details order by 1 desc;
+       
+
+column end_time format a16
+column status format a20
+column operation format a20
+column object_type format a20
+column output_device_type format a20
+column gbytes format 999,999.99
+column elapsed_hours format 999,999.99
+
+set pages 1000
+set lines 170
+set head on
+set feed off
+
+select to_char(end_time, 'YYYY-MM-DD HH24:MI') end_time,
+       status, 
+       operation, 
+       object_type, 
+       output_device_type, 
+       round(a.mbytes_processed / 1024, 2) gbytes, 
+       round((a.end_time - a.start_time) * 24, 2) elapsed_hours 
+  from v$rman_status a
+ where status != 'xCOMPLETED' and mbytes_processed > 0
+   and not (status='COMPLETED WITH WARNINGS' and output_device_type is null)
+   and output_device_type is not null
+   and object_type is not null
+   and object_type != 'ARCHIVELOG'
+ order 
+    by end_time desc;
+
+select * from v$rman_status a
+ where status = 'COMPLETED' order by end_time desc;
+
 
 select * from tsinfo order by 6 desc;
+
+select * from asm_space;
 
 select * from tsinfo where free_gb < 7 and can_extend_gb < 7 order by 6 desc;
 
@@ -324,15 +394,16 @@ select round(a.bytes/1024/1024/1024) gb, round(a.maxbytes/1024/1024/1024) maxgb,
  where tablespace_name='SYSAUX';
 
 select to_gb(a.bytes) gb, to_gb(a.maxbytes) maxgb, a.* from dba_data_files a 
- where tablespace_name='SYSTEM' order by get_file_name(file_name);
+ where tablespace_name='SY920T' order by get_file_name(file_name);
  
 select sum(jun), sum(jul) from obj_size_data where tablespace_name='SVM920T';
 
-alter tablespace SYSAUX add datafile '+DATAC1' size 5g;
+alter tablespace SY920T add datafile '/u13/oradata/jdeprd/sy920t29.dbf' size 5g;
 
-define f='+DATAC1/DJDEDB12_TORNTO/DATAFILE/sysaux.1174.1154185211';
+-- /u07/oradata/jdeprd/proddtai85.dbf
+define f='/u13/oradata/jdeprd/sy920t29.dbf';
 alter database datafile '&f' autoextend on maxsize 34358689792;
-alter database datafile '&f' resize 10g;
+alter database datafile '&f' resize 34358689792;
 
 select sum(jun), sum(jul) from obj_size_data where tablespace_name='SVM920T';
 
@@ -472,398 +543,6 @@ begin
 end;
 /
 
-select to_char(sysdate, 'HH24') from dual;
-
-select sql_text,
-       round(sum(tim0)/60, 0) tim0,
-       round(sum(tim1)/60, 1) tim1,
-       round(sum(tim2)/60, 1) tim2,
-       round(sum(tim3)/60, 1) tim3,
-       round(sum(tim4)/60, 1) tim4,
-       round(sum(tim5)/60, 1) tim5,
-       round(sum(tim6)/60, 1) tim6,
-       round(sum(tim7)/60, 1) tim7,
-       round(sum(tim8)/60, 1) tim8,
-       round(sum(tim9)/60, 1) tim9,
-       round(sum(tim10)/60, 1) tim10,
-       round(sum(tim11)/60, 1) tim11,
-       round(sum(tim12)/60, 1) tim12,
-       round(sum(tim13)/60, 1) tim13,
-       round(sum(tim14)/60, 1) tim14,
-       round(sum(tim15)/60, 1) tim15,
-       round(sum(tim16)/60, 1) tim16,
-       round(sum(tim17)/60, 1) tim17,
-       round(sum(tim18)/60, 1) tim18,
-       round(sum(tim19)/60, 1) tim19,
-       round(sum(tim20)/60, 1) tim20,
-       round(sum(tim21)/60, 1) tim21,
-       round(sum(tim22)/60, 1) tim22,
-       round(sum(tim23)/60, 1) tim23,
-       round(sum(total)/60, 1) total,
-       round(avg(avg0), 3) avg0,
-       round(avg(avg1), 3) avg1,
-       round(avg(avg2), 3) avg2,
-       round(avg(avg3), 3) avg3,
-       round(avg(avg4), 3) avg4,
-       round(avg(avg5), 3) avg5,
-       round(avg(avg6), 3) avg6,
-       round(avg(avg7), 3) avg7,
-       round(avg(avg8), 3) avg8,
-       round(avg(avg9), 3) avg9,
-       round(avg(avg10), 1) avg10,
-       round(avg(avg11), 1) avg11,
-       round(avg(avg12), 1) avg12,
-       round(avg(avg13), 1) avg13,
-       round(avg(avg14), 1) avg14,
-       round(avg(avg15), 1) avg15,
-       round(avg(avg16), 1) avg16,
-       round(avg(avg17), 1) avg17,
-       round(avg(avg18), 1) avg18,
-       round(avg(avg19), 1) avg19,
-       round(avg(avg20), 1) avg20,
-       round(avg(avg21), 1) avg21,
-       round(avg(avg22), 1) avg22,
-       round(avg(avg23), 1) avg23,
-       round(sum(exe0/1000), 1) exe0,
-       round(sum(exe1/1000), 1) exe1,
-       round(sum(exe2/1000), 1) exe2,
-       round(sum(exe3/1000), 1) exe3,
-       round(sum(exe4/1000), 1) exe4,
-       round(sum(exe5/1000), 1) exe5,
-       round(sum(exe6/1000), 1) exe6,
-       round(sum(exe7/1000), 1) exe7,
-       round(sum(exe8/1000), 1) exe8,
-       round(sum(exe9/1000), 1) exe9,
-       round(sum(exe10/1000), 1) exe10,
-       round(sum(exe11/1000), 1) exe11,
-       round(sum(exe12/1000), 1) exe12,
-       round(sum(exe13/1000), 1) exe13,
-       round(sum(exe14/1000), 1) exe14,
-       round(sum(exe15/1000), 1) exe15,
-       round(sum(exe16/1000), 1) exe16,
-       round(sum(exe17/1000), 1) exe17,
-       round(sum(exe18/1000), 1) exe18,
-       round(sum(exe19/1000), 1) exe19,
-       round(sum(exe20/1000), 1) exe20,
-       round(sum(exe21/1000), 1) exe21,
-       round(sum(exe22/1000), 1) exe22,
-       round(sum(exe23/1000), 1) exe23
-  from 
-(
-select sql_text,
-       decode(w, 0, elapsed_seconds, 0) tim0,
-       decode(w, 1, elapsed_seconds, 0) tim1,
-       decode(w, 2, elapsed_seconds, 0) tim2,
-       decode(w, 3, elapsed_seconds, 0) tim3,
-       decode(w, 4, elapsed_seconds, 0) tim4,
-       decode(w, 5, elapsed_seconds, 0) tim5,
-       decode(w, 6, elapsed_seconds, 0) tim6,
-       decode(w, 7, elapsed_seconds, 0) tim7,
-       decode(w, 8, elapsed_seconds, 0) tim8,
-       decode(w, 9, elapsed_seconds, 0) tim9,
-       decode(w, 10, elapsed_seconds, 0) tim10,
-       decode(w, 11, elapsed_seconds, 0) tim11,
-       decode(w, 12, elapsed_seconds, 0) tim12,
-       decode(w, 13, elapsed_seconds, 0) tim13,
-       decode(w, 14, elapsed_seconds, 0) tim14,
-       decode(w, 15, elapsed_seconds, 0) tim15,
-       decode(w, 16, elapsed_seconds, 0) tim16,
-       decode(w, 17, elapsed_seconds, 0) tim17,
-       decode(w, 18, elapsed_seconds, 0) tim18,
-       decode(w, 19, elapsed_seconds, 0) tim19,
-       decode(w, 20, elapsed_seconds, 0) tim20,
-       decode(w, 21, elapsed_seconds, 0) tim21,
-       decode(w, 22, elapsed_seconds, 0) tim22,
-       decode(w, 23, elapsed_seconds, 0) tim23,
-       elapsed_seconds total,
-       decode(w, 0, elapsed_seconds/executions, 0) avg0,
-       decode(w, 1, elapsed_seconds/executions, 0) avg1,
-       decode(w, 2, elapsed_seconds/executions, 0) avg2,
-       decode(w, 3, elapsed_seconds/executions, 0) avg3,
-       decode(w, 4, elapsed_seconds/executions, 0) avg4,
-       decode(w, 5, elapsed_seconds/executions, 0) avg5,
-       decode(w, 6, elapsed_seconds/executions, 0) avg6,
-       decode(w, 7, elapsed_seconds/executions, 0) avg7,
-       decode(w, 8, elapsed_seconds/executions, 0) avg8,
-       decode(w, 9, elapsed_seconds/executions, 0) avg9,
-       decode(w, 10, elapsed_seconds/executions, 0) avg10,
-       decode(w, 11, elapsed_seconds/executions, 0) avg11,
-       decode(w, 12, elapsed_seconds/executions, 0) avg12,
-       decode(w, 13, elapsed_seconds/executions, 0) avg13,
-       decode(w, 14, elapsed_seconds/executions, 0) avg14,
-       decode(w, 15, elapsed_seconds/executions, 0) avg15,
-       decode(w, 16, elapsed_seconds/executions, 0) avg16,
-       decode(w, 17, elapsed_seconds/executions, 0) avg17,
-       decode(w, 18, elapsed_seconds/executions, 0) avg18,
-       decode(w, 19, elapsed_seconds/executions, 0) avg19,
-       decode(w, 20, elapsed_seconds/executions, 0) avg20,
-       decode(w, 21, elapsed_seconds/executions, 0) avg21,
-       decode(w, 22, elapsed_seconds/executions, 0) avg22,
-       decode(w, 23, elapsed_seconds/executions, 0) avg23,
-       decode(w, 0, executions, 0) exe0,
-       decode(w, 1, executions, 0) exe1,
-       decode(w, 2, executions, 0) exe2,
-       decode(w, 3, executions, 0) exe3,
-       decode(w, 4, executions, 0) exe4,
-       decode(w, 5, executions, 0) exe5,
-       decode(w, 6, executions, 0) exe6,
-       decode(w, 7, executions, 0) exe7,
-       decode(w, 8, executions, 0) exe8,
-       decode(w, 9, executions, 0) exe9,
-       decode(w, 10, executions, 0) exe10,
-       decode(w, 11, executions, 0) exe11,
-       decode(w, 12, executions, 0) exe12,
-       decode(w, 13, executions, 0) exe13,
-       decode(w, 14, executions, 0) exe14,
-       decode(w, 15, executions, 0) exe15,
-       decode(w, 16, executions, 0) exe16,
-       decode(w, 17, executions, 0) exe17,
-       decode(w, 18, executions, 0) exe18,
-       decode(w, 19, executions, 0) exe19,
-       decode(w, 20, executions, 0) exe20,
-       decode(w, 21, executions, 0) exe21,
-       decode(w, 22, executions, 0) exe22,
-       decode(w, 23, executions, 0) exe23
-  from (
-select sql_text,
-       to_number(to_char(datetime, 'HH24')) w, 
-       elapsed_seconds,
-       executions
-  from sql_log
- where datetime > trunc(sysdate-1, 'HH24'))
- )
- group
-    by sql_text
- order by 26 desc;
-
-select sql_text,
-       round(sum(tim0)/60/60, 1) tim0,
-       round(sum(tim1)/60/60, 1) tim1,
-       round(sum(tim2)/60/60, 1) tim2,
-       round(sum(tim3)/60/60, 1) tim3,
-       round(sum(tim4)/60/60, 1) tim4,
-       round(sum(tim5)/60/60, 1) tim5,
-       round(sum(tim6)/60/60, 1) tim6,
-       round(sum(tim7)/60/60, 1) tim7,
-       round(sum(tim8)/60/60, 1) tim8,
-       round(sum(total)/60/60, 1) total,
-       round(avg(avg0), 1) avg0,
-       round(avg(avg1), 1) avg1,
-       round(avg(avg2), 1) avg2,
-       round(avg(avg3), 1) avg3,
-       round(avg(avg4), 1) avg4,
-       round(avg(avg5), 1) avg5,
-       round(avg(avg6), 1) avg6,
-       round(avg(avg7), 1) avg7,
-       round(avg(avg8), 1) avg8,
-       round(sum(exe0/1000), 1) exe0,
-       round(sum(exe1/1000), 1) exe1,
-       round(sum(exe2/1000), 1) exe2,
-       round(sum(exe3/1000), 1) exe3,
-       round(sum(exe4/1000), 1) exe4,
-       round(sum(exe5/1000), 1) exe5,
-       round(sum(exe6/1000), 1) exe6,
-       round(sum(exe7/1000), 1) exe7,
-       round(sum(exe8/1000), 1) exe8
-  from (
-select sql_text,
-       decode(w, 0, elapsed_seconds, 0) tim0,
-       decode(w, 1, elapsed_seconds, 0) tim1,
-       decode(w, 2, elapsed_seconds, 0) tim2,
-       decode(w, 3, elapsed_seconds, 0) tim3,
-       decode(w, 4, elapsed_seconds, 0) tim4,
-       decode(w, 5, elapsed_seconds, 0) tim5,
-       decode(w, 6, elapsed_seconds, 0) tim6,
-       decode(w, 7, elapsed_seconds, 0) tim7,
-       decode(w, 8, elapsed_seconds, 0) tim8,
-       elapsed_seconds total,
-       decode(w, 0, elapsed_seconds/executions, 0) avg0,
-       decode(w, 1, elapsed_seconds/executions, 0) avg1,
-       decode(w, 2, elapsed_seconds/executions, 0) avg2,
-       decode(w, 3, elapsed_seconds/executions, 0) avg3,
-       decode(w, 4, elapsed_seconds/executions, 0) avg4,
-       decode(w, 5, elapsed_seconds/executions, 0) avg5,
-       decode(w, 6, elapsed_seconds/executions, 0) avg6,
-       decode(w, 7, elapsed_seconds/executions, 0) avg7,
-       decode(w, 8, elapsed_seconds/executions, 0) avg8,
-       decode(w, 0, executions, 0) exe0,
-       decode(w, 1, executions, 0) exe1,
-       decode(w, 2, executions, 0) exe2,
-       decode(w, 3, executions, 0) exe3,
-       decode(w, 4, executions, 0) exe4,
-       decode(w, 5, executions, 0) exe5,
-       decode(w, 6, executions, 0) exe6,
-       decode(w, 7, executions, 0) exe7,
-       decode(w, 8, executions, 0) exe8
-  from (
-select sql_text,
-       round((trunc(sysdate)-trunc(datetime))) w,
-       elapsed_seconds,
-       executions
-  from sql_log
- where datetime >= trunc(sysdate) - (8)))
- group
-    by sql_text
- order by 2 desc;
-
-
- select sql_text,
-       round(sum(tim1)/60/60, 1) tim1,
-       round(sum(tim2)/60/60, 1) tim2,
-       round(sum(tim3)/60/60, 1) tim3,
-       round(sum(tim4)/60/60, 1) tim4,
-       round(sum(tim5)/60/60, 1) tim5,
-       round(sum(tim6)/60/60, 1) tim6,
-       round(sum(tim7)/60/60, 1) tim7,
-       round(sum(tim8)/60/60, 1) tim8,
-       round(sum(tim9)/60/60, 1) tim9,
-       round(sum(tim10)/60/60, 1) tim10,
-       round(sum(tim11)/60/60, 1) tim11,
-       round(sum(tim12)/60/60, 1) tim12,
-       round(sum(total)/60/60, 1) total,
-       round(avg(avg1), 3) avg1,
-       round(avg(avg2), 3) avg2,
-       round(avg(avg3), 3) avg3,
-       round(avg(avg4), 3) avg4,
-       round(avg(avg5), 3) avg5,
-       round(avg(avg6), 3) avg6,
-       round(avg(avg7), 3) avg7,
-       round(avg(avg8), 3) avg8,
-       round(avg(avg9), 3) avg9,
-       round(avg(avg10), 1) avg10,
-       round(avg(avg11), 1) avg11,
-       round(avg(avg12), 1) avg12,
-       round(sum(exe1/1000), 1) exe1,
-       round(sum(exe2/1000), 1) exe2,
-       round(sum(exe3/1000), 1) exe3,
-       round(sum(exe4/1000), 1) exe4,
-       round(sum(exe5/1000), 1) exe5,
-       round(sum(exe6/1000), 1) exe6,
-       round(sum(exe7/1000), 1) exe7,
-       round(sum(exe8/1000), 1) exe8,
-       round(sum(exe9/1000), 1) exe9,
-       round(sum(exe10/1000), 1) exe10,
-       round(sum(exe11/1000), 1) exe11,
-       round(sum(exe11/1000), 1) exe12
-  from (
-select sql_text,
-       decode(w, 1, elapsed_seconds, 0) tim1,
-       decode(w, 2, elapsed_seconds, 0) tim2,
-       decode(w, 3, elapsed_seconds, 0) tim3,
-       decode(w, 4, elapsed_seconds, 0) tim4,
-       decode(w, 5, elapsed_seconds, 0) tim5,
-       decode(w, 6, elapsed_seconds, 0) tim6,
-       decode(w, 7, elapsed_seconds, 0) tim7,
-       decode(w, 8, elapsed_seconds, 0) tim8,
-       decode(w, 9, elapsed_seconds, 0) tim9,
-       decode(w, 10, elapsed_seconds, 0) tim10,
-       decode(w, 11, elapsed_seconds, 0) tim11,
-       decode(w, 12, elapsed_seconds, 0) tim12,
-       elapsed_seconds total,
-       decode(w, 1, elapsed_seconds/executions, 0) avg1,
-       decode(w, 2, elapsed_seconds/executions, 0) avg2,
-       decode(w, 3, elapsed_seconds/executions, 0) avg3,
-       decode(w, 4, elapsed_seconds/executions, 0) avg4,
-       decode(w, 5, elapsed_seconds/executions, 0) avg5,
-       decode(w, 6, elapsed_seconds/executions, 0) avg6,
-       decode(w, 7, elapsed_seconds/executions, 0) avg7,
-       decode(w, 8, elapsed_seconds/executions, 0) avg8,
-       decode(w, 9, elapsed_seconds/executions, 0) avg9,
-       decode(w, 10, elapsed_seconds/executions, 0) avg10,
-       decode(w, 11, elapsed_seconds/executions, 0) avg11,
-       decode(w, 12, elapsed_seconds/executions, 0) avg12,
-       decode(w, 1, executions, 0) exe1,
-       decode(w, 2, executions, 0) exe2,
-       decode(w, 3, executions, 0) exe3,
-       decode(w, 4, executions, 0) exe4,
-       decode(w, 5, executions, 0) exe5,
-       decode(w, 6, executions, 0) exe6,
-       decode(w, 7, executions, 0) exe7,
-       decode(w, 8, executions, 0) exe8,
-       decode(w, 9, executions, 0) exe9,
-       decode(w, 10, executions, 0) exe10,
-       decode(w, 11, executions, 0) exe11,
-       decode(w, 12, executions, 0) exe12
-  from (
-select sql_text,
-       to_number(to_char(datetime, 'MM')) w, 
-       elapsed_seconds,
-       executions
-  from sql_log
- where datetime >= add_months(trunc(sysdate, 'MM'), -11)))
- group
-    by sql_text
- order by 14 desc;
-
- select sql_text,
-       round(sum(tim0)/60/60, 1) tim0,
-       round(sum(tim1)/60/60, 1) tim1,
-       round(sum(tim2)/60/60, 1) tim2,
-       round(sum(tim3)/60/60, 1) tim3,
-       round(sum(tim4)/60/60, 1) tim4,
-       round(sum(tim5)/60/60, 1) tim5,
-       round(sum(tim6)/60/60, 1) tim6,
-       round(sum(tim7)/60/60, 1) tim7,
-       round(sum(tim8)/60/60, 1) tim8,
-       round(sum(total)/60/60, 1) total,
-       round(avg(avg0), 1) avg0,
-       round(avg(avg1), 1) avg1,
-       round(avg(avg2), 1) avg2,
-       round(avg(avg3), 1) avg3,
-       round(avg(avg4), 1) avg4,
-       round(avg(avg5), 1) avg5,
-       round(avg(avg6), 1) avg6,
-       round(avg(avg7), 1) avg7,
-       round(avg(avg8), 1) avg8,
-       round(sum(exe0/1000), 1) exe0,
-       round(sum(exe1/1000), 1) exe1,
-       round(sum(exe2/1000), 1) exe2,
-       round(sum(exe3/1000), 1) exe3,
-       round(sum(exe4/1000), 1) exe4,
-       round(sum(exe5/1000), 1) exe5,
-       round(sum(exe6/1000), 1) exe6,
-       round(sum(exe7/1000), 1) exe7,
-       round(sum(exe8/1000), 1) exe8
-  from (
-select substr(sql_text, 1, 22) sql_text,
-       decode(w, 0, elapsed_seconds, 0) tim0,
-       decode(w, 1, elapsed_seconds, 0) tim1,
-       decode(w, 2, elapsed_seconds, 0) tim2,
-       decode(w, 3, elapsed_seconds, 0) tim3,
-       decode(w, 4, elapsed_seconds, 0) tim4,
-       decode(w, 5, elapsed_seconds, 0) tim5,
-       decode(w, 6, elapsed_seconds, 0) tim6,
-       decode(w, 7, elapsed_seconds, 0) tim7,
-       decode(w, 8, elapsed_seconds, 0) tim8,
-       elapsed_seconds total,
-       decode(w, 0, elapsed_seconds/executions, 0) avg0,
-       decode(w, 1, elapsed_seconds/executions, 0) avg1,
-       decode(w, 2, elapsed_seconds/executions, 0) avg2,
-       decode(w, 3, elapsed_seconds/executions, 0) avg3,
-       decode(w, 4, elapsed_seconds/executions, 0) avg4,
-       decode(w, 5, elapsed_seconds/executions, 0) avg5,
-       decode(w, 6, elapsed_seconds/executions, 0) avg6,
-       decode(w, 7, elapsed_seconds/executions, 0) avg7,
-       decode(w, 8, elapsed_seconds/executions, 0) avg8,
-       decode(w, 0, executions, 0) exe0,
-       decode(w, 1, executions, 0) exe1,
-       decode(w, 2, executions, 0) exe2,
-       decode(w, 3, executions, 0) exe3,
-       decode(w, 4, executions, 0) exe4,
-       decode(w, 5, executions, 0) exe5,
-       decode(w, 6, executions, 0) exe6,
-       decode(w, 7, executions, 0) exe7,
-       decode(w, 8, executions, 0) exe8
-  from (
-select sql_text,
-       round((trunc(sysdate)-trunc(datetime))/7) w,
-       elapsed_seconds,
-       executions
-  from sql_log
- where datetime >= sysdate - (7*8)))
- group
-    by sql_text
- order by 2 desc;
 
 select round(cpu_time/1000000) cpu_sec, 
        round(elapsed_time/1000000) elap_sec, 

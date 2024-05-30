@@ -166,48 +166,12 @@ begin
 end;
 
 procedure update_refs is 
+   v_sql_log_ref_date date;
 begin
-   debug('sql_monitor.update_refs: ');
-    update sql_log a
-      set a.elap_secs_per_exe_med=(
-         select round(median(b.elap_secs_per_exe), 2)
-           from sql_log b 
-          where b.datetime >= sysdate-app_config.get_param_num('sql_log_ref_days', 14)
-            and a.force_matching_signature=b.force_matching_signature
-            and b.force_matching_signature != 0)
-    where a.datetime=trunc(sysdate, 'HH24')
-      and a.force_matching_signature != 0
-      and a.elap_secs_per_exe_med is null;
-   update sql_log a
-      set a.elap_secs_per_exe_avg=(
-         select round(avg(b.elap_secs_per_exe), 2)
-           from sql_log b 
-          where b.datetime >= sysdate-app_config.get_param_num('sql_log_ref_days', 14)
-            and a.force_matching_signature=b.force_matching_signature
-            and b.force_matching_signature != 0)
-    where a.datetime=trunc(sysdate, 'HH24')
-      and a.force_matching_signature != 0
-      and a.elap_secs_per_exe_avg is null;
-   update sql_log a
-      set a.elap_secs_per_exe_med=(
-         select round(median(b.elap_secs_per_exe), 2)
-           from sql_log b 
-          where b.datetime >= sysdate-app_config.get_param_num('sql_log_ref_days', 14)
-            and a.sql_id=b.sql_id
-            and b.force_matching_signature = 0)
-    where a.datetime=trunc(sysdate, 'HH24')
-      and a.force_matching_signature = 0
-      and a.elap_secs_per_exe_med is null;
-   update sql_log a
-      set a.elap_secs_per_exe_avg=(
-         select round(avg(b.elap_secs_per_exe), 2)
-           from sql_log b 
-          where b.datetime >= sysdate-app_config.get_param_num('sql_log_ref_days', 14)
-            and a.sql_id=b.sql_id
-            and b.force_matching_signature = 0)
-    where a.datetime=trunc(sysdate, 'HH24')
-      and a.force_matching_signature = 0
-      and a.elap_secs_per_exe_avg is null;
+   -- debug('sql_monitor.update_refs: ');
+    v_sql_log_ref_date := sysdate - app_config.get_param_num('sql_log_ref_days', 14);
+
+    -- where force_matching_signature != 0
     update sql_log a 
        set a.fms_elapsed_seconds=(
            select sum(elapsed_seconds)
@@ -217,6 +181,73 @@ begin
               and b.force_matching_signature!=0)
      where a.datetime = trunc(sysdate, 'HH24')
        and a.force_matching_signature!=0;
+    update sql_log a
+      set a.elap_secs_per_exe_med=(
+         select round(median(b.elap_secs_per_exe), 2)
+           from sql_log b 
+          where b.datetime >= v_sql_log_ref_date
+            and a.force_matching_signature=b.force_matching_signature
+            and b.force_matching_signature != 0)
+    where a.datetime=trunc(sysdate, 'HH24')
+      and a.force_matching_signature != 0
+      and a.elap_secs_per_exe_med is null;
+   update sql_log a
+      set a.elap_secs_per_exe_avg=(
+         select round(avg(b.elap_secs_per_exe), 2)
+           from sql_log b 
+          where b.datetime >= v_sql_log_ref_date
+            and a.force_matching_signature=b.force_matching_signature
+            and b.force_matching_signature != 0)
+    where a.datetime=trunc(sysdate, 'HH24')
+      and a.force_matching_signature != 0
+      and a.elap_secs_per_exe_avg is null;
+
+   -- where force_matching_signature = 0
+   update sql_log a
+      set a.elap_secs_per_exe_med=(
+         select round(median(b.elap_secs_per_exe), 2)
+           from sql_log b 
+          where b.datetime >= v_sql_log_ref_date
+            and a.sql_id=b.sql_id
+            and b.force_matching_signature = 0)
+    where a.datetime=trunc(sysdate, 'HH24')
+      and a.force_matching_signature = 0
+      and a.elap_secs_per_exe_med is null;
+   update sql_log a
+      set a.elap_secs_per_exe_avg=(
+         select round(avg(b.elap_secs_per_exe), 2)
+           from sql_log b 
+          where b.datetime >= v_sql_log_ref_date
+            and a.sql_id=b.sql_id
+            and b.force_matching_signature = 0)
+    where a.datetime=trunc(sysdate, 'HH24')
+      and a.force_matching_signature = 0
+      and a.elap_secs_per_exe_avg is null;
+
+   update sql_log a
+      set a.sql_id_elap_secs_per_exe_ref=(
+              select median(elap_secs_per_exe)
+                from sql_log b 
+               where a.sql_id=b.sql_id
+                 and b.datetime >= sysdate-90
+                 and (b.elapsed_seconds > 10 or b.elap_secs_per_exe > 0)),
+          a.fms_elap_secs_per_exe_ref=(
+              select median(elap_secs_per_exe)
+                from sql_log c 
+               where a.force_matching_signature=c.force_matching_signature
+                 and c.force_matching_signature != 0
+                 and c.datetime >= sysdate-90
+                 and (c.elapsed_seconds > 10 or c.elap_secs_per_exe > 0)),
+          a.plan_elap_secs_per_exe_ref=(
+              select median(elap_secs_per_exe)
+                from sql_log d 
+               where a.plan_hash_value=d.plan_hash_value
+                 and d.plan_hash_value != 0
+                 and d.datetime >= sysdate-90
+                 and (d.elapsed_seconds > 10 or d.elap_secs_per_exe > 0))
+    where a.datetime >= sysdate - (1/24)
+      and a.sql_id_elap_secs_per_exe_ref is null;
+      
 end;
 
 procedure update_ptiles is 
@@ -237,7 +268,7 @@ procedure update_ptiles is
    x number;
    c number := 0;
 begin 
-   debug('sql_monitor.update_ptiles: ');
+   -- debug('sql_monitor.update_ptiles: ');
    for s in force_matching_signatures loop
       -- debug('force_matching_signature='||s.force_matching_signature);
       c := c + 1;

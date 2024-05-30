@@ -192,6 +192,7 @@ begin
          update obj_size_data
              set
                 last_size = x.megabytes,
+                last_delta = x.megabytes - l_record.last_size,
                 jan = l_record.jan,
                 feb = l_record.feb,
                 mar = l_record.mar,
@@ -223,6 +224,5 @@ begin
 exception
    when others then
       raise;
-
 end;
 /

@@ -10,6 +10,7 @@ select   b.tablespace
        , a.osuser
        , a.program
        , a.status
+       , round(a.last_call_et/60/60) last_call_hours
     from gv$session a
        , gv$sort_usage b
        , gv$process c

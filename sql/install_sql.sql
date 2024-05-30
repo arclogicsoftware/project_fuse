@@ -25,3 +25,4 @@
 @standby_completion_time_views.sql
 @table_growth_rates_view.sql
 @unified_audit_review_view.sql
+@sql_log_crosstab_views.sql

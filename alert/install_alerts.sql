@@ -17,3 +17,7 @@
 @alert__low_sessions.sql
 @alert__table_growth_rate.sql
 @alert__new_large_segment.sql
+@alert__sql_slow_not_normal.sql
+@alert__new_accounts.sql
+@alert__locked_accounts.sql
+@alert__expiring_passwords.sql

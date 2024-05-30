@@ -95,13 +95,13 @@ cat ./sql/session_info_view.sql
 echo ""
 cat ./sql/sga_info_view.sql 
 echo ""
-cat ./sql/jde_run_batch_views.sql
-echo ""
 cat ./sql/standby_completion_time_views.sql
 echo ""
 cat ./sql/table_growth_rates_view.sql
 echo ""
 cat ./sql/unified_audit_review_view.sql
+echo ""
+cat ./sql/sql_log_crosstab_views.sql
 echo ""
 cd alert
 ls | grep "^alert__.*sql$" | while read f; do

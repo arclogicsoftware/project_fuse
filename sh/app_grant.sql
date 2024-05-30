@@ -104,7 +104,7 @@ grant select on gv$osstat to &username;
 grant select on v$osstat to &username;
 grant select on v$datafile to &username;
 grant select on gv$datafile to &username;
-
+grant select on gv$segment_statistics to &username;
 
 -- Style 2
 
@@ -166,6 +166,7 @@ grant select on gv_$osstat to &username;
 grant select on v_$osstat to &username;
 grant select on v_$datafile to &username;
 grant select on gv_$datafile to &username;
+grant select on gv_$segment_statistics to &username;
 
 -- RDS (object names are case sensative!)
 execute rdsadmin.rdsadmin_util.grant_sys_object( p_obj_name=>'DBA_SEGMENTS', p_grantee=>'&username', p_privilege=>'SELECT');
@@ -246,6 +247,5 @@ execute rdsadmin.rdsadmin_util.grant_sys_object( p_obj_name=>'GV_$FILESTAT', p_g
 execute rdsadmin.rdsadmin_util.grant_sys_object( p_obj_name=>'V_$FILESTAT', p_grantee=>'&username', p_privilege=>'SELECT');
 execute rdsadmin.rdsadmin_util.grant_sys_object( p_obj_name=>'DBA_PROFILES', p_grantee=>'&username', p_privilege=>'SELECT');
 execute rdsadmin.rdsadmin_util.grant_sys_object( p_obj_name=>'UNIFIED_AUDIT_TRAIL', p_grantee=>'&username', p_privilege=>'SELECT');
+execute rdsadmin.rdsadmin_util.grant_sys_object( p_obj_name=>'GV_$SEGMENT_STATISTICS', p_grantee=>'&username', p_privilege=>'SELECT');
 execute rdsadmin.rdsadmin_util.grant_sys_object( p_obj_name=>'DBMS_LOCK', p_grantee=>'&username', p_privilege=>'EXECUTE');
-
-

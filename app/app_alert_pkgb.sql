@@ -17,6 +17,7 @@ end;
 procedure close_alert (
    p_alert_name in varchar2,
    p_alert_type in varchar2 default null) is 
+   -- Closes the specified alert by updating its status and marking it as ready for notification.
    pragma autonomous_transaction;
 begin 
    update alert_table 
@@ -81,6 +82,7 @@ end;
 
 procedure merge_alert_long (
    p_view_name in varchar2) is
+   -- Merges alerts from a long alert view into the alert_table.
    c sys_refcursor;
    a alert_table%rowtype;
 begin

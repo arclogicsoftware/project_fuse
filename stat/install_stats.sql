@@ -13,3 +13,4 @@
 @stat__not_applied_arch_log_count.sql
 @stat__os_stats.sql
 @stat__stale_sessions.sql
+@stat__segment_stats.sql

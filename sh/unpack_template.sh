@@ -1,6 +1,10 @@
 
 source_file="${1}"
 
+if [[ -z "${source_file}" ]]; then 
+   source_file=$$.pack
+fi
+
 while IFS= read -r file_line; do
    t=$(echo "${file_line}" | grep "^::: " | wc -l)
    if (( ${t} == 1 )); then 

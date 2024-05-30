@@ -45,7 +45,7 @@ begin
 end;
 /
 
-exec drop_table('alert_table');
+-- exec drop_table('alert_table');
 begin 
    if not does_table_exist('alert_table') then 
       execute immediate q'<create table alert_table (
@@ -222,7 +222,6 @@ begin
       sql_id                       varchar2(100),
       sql_text                     varchar2(100),
       plan_hash_value              number,
-      plan_age_in_days             number,
       force_matching_signature     number,
       datetime                     date,
       update_count                 number default 0,
@@ -235,6 +234,9 @@ begin
       executions                   number,
       executions_ptile             number,
       elap_secs_per_exe            number,
+      sql_id_elap_secs_per_exe_ref number default null,
+      fms_elap_secs_per_exe_ref    number default null,
+      plan_elap_secs_per_exe_ref   number default null,
       elap_secs_per_exe_ptile      number,
       secs_0_1                     number default 0,
       secs_2_5                     number default 0,
@@ -254,6 +256,18 @@ begin
 
    if not does_column_exist('sql_log', 'fms_elapsed_seconds') then
       execute immediate 'alter table sql_log add (fms_elapsed_seconds number)';
+   end if;
+
+   if not does_column_exist('sql_log', 'sql_id_elap_secs_per_exe_ref') then
+      execute immediate 'alter table sql_log add (sql_id_elap_secs_per_exe_ref number)';
+   end if;
+
+   if not does_column_exist('sql_log', 'fms_elap_secs_per_exe_ref') then
+      execute immediate 'alter table sql_log add (fms_elap_secs_per_exe_ref number)';
+   end if;
+
+   if not does_column_exist('sql_log', 'plan_elap_secs_per_exe_ref') then
+      execute immediate 'alter table sql_log add (plan_elap_secs_per_exe_ref number)';
    end if;
    
    if not does_index_exist('sql_log_1') then
@@ -299,6 +313,7 @@ begin
    drop_column('sql_log', 'sql_log_min_score');
    drop_column('sql_log', 'sql_log_score_count');
    drop_column('sql_log', 'hours_since_last_exe');
+   drop_column('sql_log', 'plan_age_in_days');
 
    if not does_column_exist('sql_log', 'elapsed_seconds_ptile') then
       execute immediate 'alter table sql_log add (elapsed_seconds_ptile number)';
@@ -357,6 +372,7 @@ begin
          start_size      number default 0,
          year            number default to_number(to_char(sysdate,''YYYY'')),
          last_size       number default 0,
+         last_delta      number default 0,
          jan             number default 0,
          feb             number default 0,
          mar             number default 0,
@@ -371,6 +387,9 @@ begin
          dec             number default 0,
          updated         date default trunc(sysdate),
          constraint obj_size_data_pk_v2 primary key (owner,segment_name,partition_name,segment_type))';
+   end if;
+   if not does_column_exist('obj_size_data', 'last_delta') then 
+      execute immediate 'alter table obj_size_data add (last_delta number default 0)';
    end if;
 end;
 /
