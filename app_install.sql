@@ -46,7 +46,7 @@ exec drop_scheduler_job('run_minutely_job');
 -- To be provided by customer.
 @app/app_customer.sql
 
-@fuse/fuse_install.sql
+@fuse/install_fuse.sql
 
 begin 
    app_config.add_param_num(p_name=>'collect_stat_repeat_interval', p_num=>5);
