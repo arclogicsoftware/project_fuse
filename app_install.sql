@@ -43,6 +43,7 @@ exec drop_scheduler_job('run_minutely_job');
 @app/app_synonyms.sql
 @app/app_schedules.sql
 @app/app_tests.sql
+@app/backup_privs.sql
 -- To be provided by customer.
 @app/app_customer.sql
 
@@ -69,7 +70,7 @@ select 'alter package '||object_name||' compile'||decode(object_type, 'PACKAGE B
 union all
 select 'alter '||object_type||' '||object_name||' compile;' x
   from user_objects where status='INVALID'
-   and object_type in ('PROCEDURE', 'FUNCTION', 'TRIGGER');
+   and object_type in ('PROCEDURE', 'FUNCTION', 'TRIGGER', 'VIEW');
 
 alter package SQL_MONITOR compile body;
 alter package APP_ALERT compile body;
@@ -80,7 +81,20 @@ select 'alter package '||object_name||' compile'||decode(object_type, 'PACKAGE B
 union all
 select 'alter '||object_type||' '||object_name||' compile;' x
   from user_objects where status='INVALID'
-   and object_type in ('PROCEDURE', 'FUNCTION', 'TRIGGER');
+   and object_type in ('PROCEDURE', 'FUNCTION', 'TRIGGER', 'VIEW');
    
 commit;
+
+declare
+   n number;
+begin
+   select count(*) into n from user_objects where status='INVALID';
+   if n = 0 then 
+      raise_application_error (-20001, '** SUCCESS **, No invalid objects, this is not an error!');
+   else
+      raise_application_error (-20001, '** ERROR ** - Check for invalid objects!');
+   end if;
+end;
+/
+
 

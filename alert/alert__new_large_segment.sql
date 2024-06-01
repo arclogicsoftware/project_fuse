@@ -5,5 +5,5 @@ select 'warning' alert_level,
        'database' alert_type
   from obj_size_data 
  where segment_type!='datafile' 
-   and start_date >= trunc(sysdate-7)
+   and start_date >= trunc(sysdate-1)
    and last_size > 1024;

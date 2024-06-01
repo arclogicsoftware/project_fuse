@@ -25,8 +25,8 @@ group
      last_call_days
 order by 2 desc;
 
-select * from stat_table 
- where str_avg_list(feb||','||mar||','||apr) < may*.8 order by decode(str_avg_list(feb||','||mar||','||apr), 0, 999, may/str_avg_list(feb||','||mar||','||apr)) desc;
+select stat_name, stat_group, stat_type, stat_label, jan, feb, mar, apr, may, jun  from stat_table 
+ where str_avg_list(feb||','||mar||','||apr) < may*.8 order by stat_group, decode(str_avg_list(feb||','||mar||','||apr), 0, 999, may/str_avg_list(feb||','||mar||','||apr)) desc;
 
 select username, module, program, trunc(logon_time), count(*) 
   from v$session 

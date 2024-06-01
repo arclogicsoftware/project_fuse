@@ -1335,8 +1335,9 @@ end;
 /
 
 create or replace function convert_to_csv_row (p_sql_query in varchar2)
-  return clob
-is
+  return clob is
+  -- Returns "1,2"
+  -- select convert_to_csv_row('select 1 x from dual union all select 2 x from dual') from dual;
   v_csv_string clob;
   v_value varchar2(4000);
   v_cursor sys_refcursor;
