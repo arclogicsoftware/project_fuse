@@ -28,6 +28,7 @@ exec drop_scheduler_job('run_minutely_job');
 @app/sensor_pkgb.sql
 @app/assert_pkgh.sql
 @app/assert_pkgb.sql
+@app/app_format.sql
 @app/app_json_pkgh.sql
 @app/app_json_pkgb.sql
 @app/app_api_pkgh.sql

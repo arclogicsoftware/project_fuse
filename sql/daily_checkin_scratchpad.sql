@@ -93,6 +93,16 @@ select * from sql_log_daily_crosstab;
 select * from sql_log_monthly_crosstab;
 select * from sql_log_weekly_crosstab where hrs0_elap_this_wk > hrs1 or hrs0_elap_this_wk > hrs2;
 
+set lines 140
+set pages 100
+col sql_text format a40 trunc
+col hrs0_elap_this_wk format 99999
+col hrs1 format 99999
+col hrs2 format 99999
+
+select sql_text, hrs0_elap_this_wk, hrs1, hrs2
+ from sql_log_weekly_crosstab order by 3;
+
 -- Can be used to spot events, estaimte amount of change going on in the database. 
 select * from archive_log_dist order by 1 desc;
 

@@ -11,6 +11,7 @@
 @sensor__accounts_of_interest.sql
 @sensor__dba_profiles.sql
 @sensor__dba_roles.sql
+@sensor__sparse_tables.sql
 
 begin
    app_config.add_param_num(p_name=>'sensor_purge_days', p_num=>365);

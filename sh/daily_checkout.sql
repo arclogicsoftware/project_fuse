@@ -97,6 +97,19 @@ select tablespace_name,
  order
     by 5 desc;
 
+set lines 140
+set pages 1000
+column owner format a15
+column table_name format a40
+column estimated_size_mb format 999,999,999
+column actual_size_mb format 999,999,999
+column delta_mb format 999,999,999
+
+prompt
+prompt [SPARSE TABLES]
+
+select * from sparse_tables where delta_mb > 1000;
+
 col pct_full_reclaimable format 999
 col pct_full format 999
 col space_limit_gb format 999,999
