@@ -19,6 +19,9 @@ begin
       label varchar2(128),
       created date default sysdate)';
    end if;
+   if not does_column_exist('backup_dba_tab_privs', 'created') then
+      execute immediate 'alter table backup_dba_tab_privs add (created date default sysdate)';
+   end if;
    if not does_index_exist('backup_dba_tab_privs_01') then 
       execute immediate 'create index backup_dba_tab_privs_01 on backup_dba_tab_privs (grantee)';
    end if;

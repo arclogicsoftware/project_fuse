@@ -46,7 +46,11 @@ fi
 
 if [[ "${1}" == "HOURLY" ]]; then
    get_datapump_dirs | while read d; do 
-      echo "$(du -sk ${d} | awk '{print $1}') / 1024 / 1024"  | bc | sensor "datapump_$(to_key_str ${d})" | send_message "Datapump ${d} Dir Size GB"
+      echo "$(du -sfk ${d} | awk '{print $1}') / 1024 / 1024"  | bc | sensor "datapump_$(to_key_str ${d})" | send_message "Datapump ${d} Dir Size GB"
+   done
+   # Use the check lag db list to also check for guaranteed restore points which cause hang if they do not eventually get removed.
+   get_check_lag_db_list | while read d; do 
+      run_sql_file "${d}" "./restore_point_check.sql" "INFO: Guaranteed Restore Point"
    done
    exit 0
 fi

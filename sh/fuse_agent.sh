@@ -3,7 +3,7 @@
 # Directories to monitor and move files to
 WATCH_DIR="/c/Temp/watch"
 PROCESSED_DIR="/c/Temp/processed"
-GROQ_API_KEY="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"
+GROQ_API_KEY="lol"
 
 [[ ! -d "$WATCH_DIR" ]] && echo "Watch directory does not exist" && exit 1
 [[ ! -d "$PROCESSED_DIR" ]] && echo "Processed directory does not exist" && exit 1
