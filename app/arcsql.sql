@@ -1,18 +1,4 @@
 
--- drop procedure execute_sql;
-create or replace procedure execute_sql (
-  sql_text varchar2, 
-  ignore_errors boolean := false) authid current_user is
-begin
-   execute immediate sql_text;
-exception
-   when others then
-      if not ignore_errors then
-         raise;
-      end if;
-end;
-/
-
 -- drop procedure drop_object;
 create or replace procedure drop_object (object_name varchar2, object_type varchar2) is
    n number;
@@ -69,7 +55,7 @@ end;
 create or replace procedure drop_view (view_name in varchar2) is 
 begin 
   if does_object_exist(drop_view.view_name, 'VIEW') then 
-     execute_sql('drop view '||drop_view.view_name);
+     execute immediate 'drop view '||drop_view.view_name;
   end if;
 end;
 /
@@ -78,7 +64,7 @@ end;
 create or replace procedure drop_function (function_name in varchar2) is 
 begin 
   if does_object_exist(drop_function.function_name, 'FUNCTION') then 
-     execute_sql('drop function '||drop_function.function_name);
+     execute immediate 'drop function '||drop_function.function_name;
   end if;
 end;
 /
@@ -87,7 +73,7 @@ end;
 create or replace procedure drop_procedure (procedure_name in varchar2) is 
 begin 
   if does_object_exist(drop_procedure.procedure_name, 'PROCEDURE') then 
-     execute_sql('drop procedure '||drop_procedure.procedure_name);
+     execute immediate 'drop procedure '||drop_procedure.procedure_name;
   end if;
 end;
 /
@@ -96,7 +82,7 @@ end;
 create or replace procedure drop_type (type_name in varchar2) is 
 begin 
   if does_object_exist(drop_type.type_name, 'TYPE') then 
-     execute_sql('drop type '||drop_type.type_name);
+     execute immediate 'drop type '||drop_type.type_name;
   end if;
 end;
 /
@@ -104,7 +90,7 @@ end;
 create or replace procedure drop_trigger (trigger_name in varchar2) is 
 begin 
   if does_object_exist(drop_trigger.trigger_name, 'TRIGGER') then 
-     execute_sql('drop trigger '||drop_trigger.trigger_name);
+     execute immediate 'drop trigger '||drop_trigger.trigger_name;
   end if;
 end;
 /
@@ -135,7 +121,7 @@ end;
 create or replace procedure drop_package (package_name in varchar2) is 
 begin 
    if does_package_exist(drop_package.package_name) then 
-      execute_sql('drop package '||drop_package.package_name);
+      execute immediate 'drop package '||drop_package.package_name;
    end if;
 end;
 /
@@ -196,7 +182,7 @@ n number;
 begin 
    if does_column_exist(
       table_name, column_name) then 
-      execute_sql('alter table '||table_name||' drop column '||column_name);
+      execute immediate 'alter table '||table_name||' drop column '||column_name;
    end if;
 exception 
    when others then
@@ -238,7 +224,7 @@ create or replace procedure add_primary_key (
    column_name in varchar2) is 
 begin 
    if not does_constraint_exist('pk_'||table_name) then 
-      execute_sql('alter table '||table_name||' add constraint pk_'||table_name||' primary key ('||column_name||')');
+      execute immediate 'alter table '||table_name||' add constraint pk_'||table_name||' primary key ('||column_name||')';
    end if;
 end;
 /
@@ -311,7 +297,7 @@ end;
 create or replace procedure create_sequence (sequence_name in varchar2) is 
 begin
    if not does_sequence_exist(sequence_name) then
-      execute_sql('create sequence '||sequence_name, false);
+      execute immediate 'create sequence '||sequence_name;
    end if;
 end;
 /
@@ -393,10 +379,10 @@ create or replace procedure create_lookup_table (
    p_name in varchar2) is 
 begin 
    if not does_table_exist(p_name) then 
-      execute_sql('
+      execute immediate '
          create table '||p_name||' (
          '||p_name||' varchar2(512)
-         )');
+         )';
       add_primary_key(p_name, p_name);
    end if;
 end;
@@ -423,11 +409,11 @@ create or replace procedure add_foreign_key (
 begin 
    v_constraint_name := 'fk_'||p_table||'_'||p_column;
    if not does_constraint_exist(v_constraint_name) then 
-      execute_sql('
+      execute immediate '
          alter table '||p_table||'
          add constraint '||v_constraint_name||'
          foreign key ('||p_column||')
-         references '||p_parent_table||' ('||p_parent_column||')'||(case when p_cascade then ' on delete cascade' else '' end));
+         references '||p_parent_table||' ('||p_parent_column||')'||(case when p_cascade then ' on delete cascade' else '' end);
    end if;
 end;
 /
@@ -951,7 +937,10 @@ end;
 /
 
 create or replace procedure increment_counter (
-   p_key in varchar2, p_num in number default 1) is 
+   # Updates or inserts a counter in COUNTER_TABLE based on a specified key.
+   # 'p_key' is forced to lower case.
+   p_key in varchar2, 
+   p_num in number default 1) is 
 begin 
    update counter_table set value=value+p_num, updated=systimestamp where counter_key=lower(p_key);
    if sql%rowcount = 0 then 
@@ -961,6 +950,7 @@ end;
 /
 
 create or replace procedure log_text (
+   # Log a message to the LOG_TABLE of TYPE with EXPIRES date, and with notifcation flag (0 or 1).
    p_text in varchar2, 
    p_type in varchar2 default 'log',
    p_expires in timestamp default null,
@@ -986,6 +976,7 @@ end;
 /
 
 create or replace procedure debug (
+   # Logs a debug message which expires in 7 days to the LOG_TABLE.
    p_text in varchar2) is 
 begin
    log_text(p_text=>p_text, p_type=>'debug', p_expires=>systimestamp - interval '7' day, p_notify=>0);
@@ -993,6 +984,7 @@ end;
 /
 
 create or replace procedure debug2 (
+   # Logs a debug message which expires in 1 day to the LOG_TABLE.
    p_text in varchar2) is 
 begin
    null;
@@ -1001,6 +993,7 @@ end;
 /
 
 create or replace procedure log_err (
+   # Logs an error message to the LOG_TABLE which expires in 30 days.
    p_text in varchar2) is 
 begin
    log_text(p_text=>p_text, p_type=>'error', p_expires=>systimestamp - interval '30' day, p_notify=>0);

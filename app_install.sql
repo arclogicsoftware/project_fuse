@@ -75,6 +75,13 @@ select 'alter '||object_type||' '||object_name||' compile;' x
 
 alter package SQL_MONITOR compile body;
 alter package APP_ALERT compile body;
+alter package SQL_MONITOR compile body;
+alter package APP_ALERT compile body;
+alter FUNCTION SQL_TO_CSV_PIPE compile;
+alter FUNCTION SQL_TO_CSV_CLOB compile;
+alter PROCEDURE LOG_ERR compile;
+alter PROCEDURE DEBUG compile;
+alter VIEW ALERTS_NOTIFY_REPORT compile;
 
 select 'alter package '||object_name||' compile'||decode(object_type, 'PACKAGE BODY', ' body', '')||';' x
   from user_objects where status='INVALID'

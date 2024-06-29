@@ -89,4 +89,6 @@ end;
 
 exec drop_scheduler_job('update_sql_ptiles');
 
+exec drop_procedure('execute_sql');
+
 commit;
