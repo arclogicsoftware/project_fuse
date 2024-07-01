@@ -107,12 +107,6 @@ begin
       -- Is the hh24_avg or the last value / hr_ref.
       rolling_stat_value varchar2(512) default null,
       rolling_hh24_pct_of_ref varchar2(512) default null,
-      below_ref_mi number default 0,
-      above_ref_mi number default 0,
-      ddd_below_ref_hrs number default 0,
-      ddd_above_ref_hrs number default 0,
-      mm_below_ref_days number default 0,
-      mm_above_ref_days number default 0,
       -- stage, inactive, active.
       status varchar2(16) default 'stage',
       hour number default null,
@@ -185,6 +179,12 @@ begin
       execute immediate q'<alter table stat_table add (zero_neg_deltas number default 1)>';
    end if;
    drop_column('stat_table', 'allow_negative_value');
+   drop_column('stat_table', 'below_ref_mi');
+   drop_column('stat_table', 'above_ref_mi');
+   drop_column('stat_table', 'ddd_below_ref_hrs');
+   drop_column('stat_table', 'ddd_above_ref_hrs');
+   drop_column('stat_table', 'mm_below_ref_days');
+   drop_column('stat_table', 'mm_above_ref_days');
 end;
 /
 

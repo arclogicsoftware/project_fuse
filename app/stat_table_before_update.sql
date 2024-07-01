@@ -68,18 +68,12 @@ begin
    if ddd_changed then 
       :new.ddd_total := 0;
       :new.ddd_count := 0;
-      -- Unlike *ref_mins these values are cumulative for the day and get reset when the day rolls.
-      :new.ddd_below_ref_hrs := 0;
-      :new.ddd_above_ref_hrs := 0;
    end if;
 
    -- Things we need to do when the month changes.
    if mm_changed then
       :new.mm_total := 0;
       :new.mm_count := 0;
-      -- Unlike *ref_mins these values are cumulative for the month and get reset when the month rolls.
-      :new.mm_below_ref_days := 0;
-      :new.mm_above_ref_days := 0;
    end if;
 
    :new.time_delta := secs_between_timestamps(:old.value_time, :new.value_time);
@@ -173,21 +167,6 @@ begin
       :new.hh24_pct_of_ref := 100;
    else
       :new.hh24_pct_of_ref := round((:new.hh24_avg/:new.ref_val)*100);
-   end if;
-
-   if :new.hh24_pct_of_ref > 110 then
-      :new.above_ref_mi := :new.above_ref_mi + round(:new.time_delta/60);
-      :new.ddd_above_ref_hrs := :new.ddd_above_ref_hrs + round(:new.time_delta/60/60, 2);
-      :new.mm_above_ref_days := :new.mm_above_ref_days + round(:new.time_delta/60/60/24, 2);
-      :new.below_ref_mi := 0;
-   elsif :new.hh24_pct_of_ref < 90 then
-      :new.below_ref_mi := :new.below_ref_mi + round(:new.time_delta/60);
-      :new.ddd_below_ref_hrs := :new.ddd_below_ref_hrs + round(:new.time_delta/60/60, 2);
-      :new.mm_below_ref_days := :new.mm_below_ref_days + round(:new.time_delta/60/60/24, 2);
-      :new.above_ref_mi := 0;
-   else 
-      :new.above_ref_mi := 0;
-      :new.below_ref_mi := 0;
    end if;
 
    case this_hh24 
