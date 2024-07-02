@@ -91,4 +91,7 @@ exec drop_scheduler_job('update_sql_ptiles');
 
 exec drop_procedure('execute_sql');
 
+exec drop_view('SQL_LOG_AVG_HRS_SINCE_LAST_EXE');
+exec drop_view('SQL_LOG_LAST_EXE_HRS_AGO');
+   
 commit;
