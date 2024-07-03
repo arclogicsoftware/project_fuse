@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-# RMAN_DIR="/opt/oracle/dcs/log/dbjde63prd/rman/bkup/jde63prd_iad1kh"
 RMAN_DIR="${1}"
 
 . g.sh
