@@ -16,6 +16,8 @@ exec drop_view('alert__flash_recovery_area_space');
 
 exec drop_view('alerts_ready_notify');
 
+exec drop_trigger('alert_can_notify_yn');
+
 exec drop_view('blocked_is_blocked');
 
 delete from config_table where name='default_alert_level';
@@ -90,5 +92,7 @@ end;
 exec drop_scheduler_job('update_sql_ptiles');
 
 exec drop_procedure('execute_sql');
+
+exec drop_procedure('apply_alert_rules');
 
 commit;

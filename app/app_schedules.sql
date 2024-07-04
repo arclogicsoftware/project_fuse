@@ -23,7 +23,7 @@ begin
        job_type        => 'PLSQL_BLOCK',
        job_action      => 'begin app_alert.check_alert_views; end;',
        start_date      => systimestamp,
-       repeat_interval => 'freq=minutely;interval=10',
+       repeat_interval => 'freq=minutely;interval=5',
        enabled         => true);
    end if;
 end;

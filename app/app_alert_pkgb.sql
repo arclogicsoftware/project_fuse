@@ -1,5 +1,43 @@
 create or replace package body app_alert is 
 
+procedure evaluate_alerts is
+   cursor alerts is 
+   select * from alert_table
+    where updated >= systimestamp - interval '1' day;
+   v_notify number := 0;
+begin
+   for a in alerts loop 
+      if a.ready_notify=1 or
+         alert_can_notify_yn (
+            p_alert_name=>a.alert_name,
+            p_alert_level=>a.alert_level,
+            p_alert_info=>a.alert_info,
+            p_alert_type=>a.alert_type,
+            p_alert_view=>a.alert_view) = 'n' or
+         (a.closed is not null and a.last_notify is not null and a.last_notify < a.closed) then 
+         v_notify := a.ready_notify;
+      elsif a.closed is not null then  -- Closed
+         if (a.last_eval < a.closed or a.last_eval is null) then
+            v_notify := 1;
+         end if;
+      else -- Open
+         if (a.opened > a.last_eval or a.last_eval is null) and
+            a.opened <= systimestamp - numtodsinterval(nvl(a.alert_delay, 0), 'minute') then 
+            v_notify := 1;
+         end if;
+         if a.last_notify is not null then 
+            if a.last_notify < systimestamp - numtodsinterval(nvl(a.notify_interval, 0), 'minute') then 
+               v_notify := 1;
+            end if;
+         end if;
+      end if;
+      update alert_table 
+         set last_eval=systimestamp,
+             ready_notify=v_notify
+       where alert_id=a.alert_id;
+   end loop;
+end;
+
 function get_notify_count (
    -- Returns minimum number of notifications sent for the alert in given # of hours.
    -- Can be used in the filter procedures.
@@ -21,8 +59,7 @@ procedure close_alert (
    pragma autonomous_transaction;
 begin 
    update alert_table 
-      set closed=systimestamp,
-          ready_notify=1
+      set closed=systimestamp
     where alert_name=p_alert_name
       and nvl(alert_type, '~')=nvl(p_alert_type, '~')
       and closed is null;
@@ -74,7 +111,7 @@ begin
          p_alert_info,
          p_alert_type,
          p_alert_view,
-         1);
+         0);
    end if;
 
    commit;
@@ -108,8 +145,7 @@ procedure check_close (
    p_view_name in varchar2) is
 begin 
    update alert_table
-      set closed=systimestamp,
-          ready_notify=1
+      set closed=systimestamp
     where alert_view=p_view_name 
       and closed is null
       and secs_between_timestamps(systimestamp, updated) > 30;
@@ -164,9 +200,7 @@ end;
 
 procedure check_alert_views is 
    cursor alert_views is 
-   select view_name
-     from user_views
-    where view_name like 'ALERT\_\_%' escape '\';
+      select view_name from user_views where view_name like 'ALERT\_\_%' escape '\';
    n number;
    elapsed_secs number;
    epoch_now number := get_epoch_from_date;
@@ -213,7 +247,7 @@ begin
 
    end loop;
 
-   apply_alert_rules;
+   evaluate_alerts;
 
 end;
 

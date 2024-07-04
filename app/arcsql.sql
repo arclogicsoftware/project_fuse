@@ -937,8 +937,8 @@ end;
 /
 
 create or replace procedure increment_counter (
-   # Updates or inserts a counter in COUNTER_TABLE based on a specified key.
-   # 'p_key' is forced to lower case.
+   -- Updates or inserts a counter in COUNTER_TABLE based on a specified key.
+   -- 'p_key' is forced to lower case.
    p_key in varchar2, 
    p_num in number default 1) is 
 begin 
@@ -950,7 +950,7 @@ end;
 /
 
 create or replace procedure log_text (
-   # Log a message to the LOG_TABLE of TYPE with EXPIRES date, and with notifcation flag (0 or 1).
+   -- Log a message to the LOG_TABLE of TYPE with EXPIRES date, and with notifcation flag (0 or 1).
    p_text in varchar2, 
    p_type in varchar2 default 'log',
    p_expires in timestamp default null,
@@ -976,7 +976,7 @@ end;
 /
 
 create or replace procedure debug (
-   # Logs a debug message which expires in 7 days to the LOG_TABLE.
+   -- Logs a debug message which expires in 7 days to the LOG_TABLE.
    p_text in varchar2) is 
 begin
    log_text(p_text=>p_text, p_type=>'debug', p_expires=>systimestamp - interval '7' day, p_notify=>0);
@@ -984,7 +984,7 @@ end;
 /
 
 create or replace procedure debug2 (
-   # Logs a debug message which expires in 1 day to the LOG_TABLE.
+   -- Logs a debug message which expires in 1 day to the LOG_TABLE.
    p_text in varchar2) is 
 begin
    null;
@@ -993,7 +993,7 @@ end;
 /
 
 create or replace procedure log_err (
-   # Logs an error message to the LOG_TABLE which expires in 30 days.
+   -- Logs an error message to the LOG_TABLE which expires in 30 days.
    p_text in varchar2) is 
 begin
    log_text(p_text=>p_text, p_type=>'error', p_expires=>systimestamp - interval '30' day, p_notify=>0);
@@ -1106,7 +1106,7 @@ end;
 create or replace procedure set_last_time (
    p_name in varchar2) is 
 begin 
-   app_config.set_param_str(
+   app_config.set_param_str (
       p_name=>'last_time_'||p_name,
       p_str=>to_char(sysdate, 'YYYYMMDDHH24MISS'));
 end;
@@ -1363,6 +1363,33 @@ begin
       return 1;
    else 
       return 0;
+   end if;
+end;
+/
+
+create or replace function is_truthy (p_val in varchar2) return boolean is 
+begin
+   debug2('is_truthy: '||p_val);
+   if lower(p_val) in ('y','yes', '1', 'true') then
+      --debug2('is_truthy: true');
+      return true;
+   elsif instr(p_val, ' ') > 0 then 
+      if cron_expression_yn(p_val)='y' then 
+         --debug2('is_truthy: true');
+         return true;
+      end if;
+   end if;
+   --debug2('is_truthy: false');
+   return false;
+end;
+/
+
+create or replace function is_truthy_yn (p_val in varchar2) return varchar2 is 
+begin 
+   if is_truthy(p_val) then 
+      return 'y';
+   else 
+      return 'n';
    end if;
 end;
 /

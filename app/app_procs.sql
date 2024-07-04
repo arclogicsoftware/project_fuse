@@ -13,37 +13,6 @@ begin
 end;
 /
 
-create or replace procedure apply_alert_rules as 
-begin
-   update alert_table set ready_notify=1 where notify_count=0;
-
-   -- if sql%rowcount > 0 then
-   --    update alert_table set ready_notify=1 where closed is null;
-   -- end if;
-
-   -- update alert_table set ready_notify=1
-   --  where closed is not null
-   --    and notify_count > 0
-   --    and closed > last_notify;
-
-   -- if sql%rowcount > 0 then
-   --    update alert_table set ready_notify=1 where closed is null;
-   -- end if;
-
-   -- update alert_table set ready_notify=1
-   --  where notify_count > 0 
-   --    and alert_level not in ('info')
-   --    and closed is null
-   --    -- Hours
-   --    and secs_between_timestamps(last_notify, systimestamp)/60/60 > 8;
-
-   --  if sql%rowcount > 0 then
-   --    update alert_table set ready_notify=1 where closed is null;
-   --  end if;
-   commit;
-end;
-/
-
 exec drop_table('test_table');
 begin
    if not does_table_exist('test_table') then 
@@ -162,3 +131,30 @@ begin
    null;
 end;
 /
+
+create or replace procedure send_email ( 
+   p_to in varchar2, 
+   p_from in varchar2, 
+   p_body in varchar2,
+   p_subject in varchar2
+   ) is
+   v_to varchar2(256) := lower(p_to);
+begin
+
+   -- This line needs to be added for Maxapex.
+   -- Update: 2/22/2022 Setting this caused erratic behavior in the return for apex_page.get_url.
+   -- It would return full url with domain and change from f= type of url to pretty url. 
+   -- Sending email from Maxapex seems to work without this being set.
+   -- wwv_flow_api.set_security_group_id;
+   apex_mail.send(
+      p_to=>v_to,
+      p_from=>p_from,
+      p_subj=>p_subject,
+      p_body=>p_body,
+      p_body_html=>p_body
+      );
+   apex_mail.push_queue;
+   commit;
+end;
+/
+
