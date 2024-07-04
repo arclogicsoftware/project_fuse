@@ -81,7 +81,7 @@ alter FUNCTION SQL_TO_CSV_PIPE compile;
 alter FUNCTION SQL_TO_CSV_CLOB compile;
 alter PROCEDURE LOG_ERR compile;
 alter PROCEDURE DEBUG compile;
-alter VIEW ALERTS_NOTIFY_REPORT compile;
+alter VIEW alerts_ready_notify compile;
 
 select 'alter package '||object_name||' compile'||decode(object_type, 'PACKAGE BODY', ' body', '')||';' x
   from user_objects where status='INVALID'

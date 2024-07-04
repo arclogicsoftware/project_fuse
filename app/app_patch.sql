@@ -98,4 +98,8 @@ exec drop_procedure('apply_alert_rules');
 exec drop_view('SQL_LOG_AVG_HRS_SINCE_LAST_EXE');
 exec drop_view('SQL_LOG_LAST_EXE_HRS_AGO');
    
+drop public synonym alerts_notify_report;
+
+exec drop_view('alerts_notify_report');
+
 commit;

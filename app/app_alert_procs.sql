@@ -24,7 +24,9 @@ begin
 end;
 /
 
-create or replace view alerts_notify_report as
+exec drop_view('alerts_notify_report');
+
+create or replace view alerts_ready_notify as
 select decode(closed, null, 'OPEN', 'CLOSED') status,
        a.alert_level,
        a.alert_name,
@@ -34,18 +36,25 @@ select decode(closed, null, 'OPEN', 'CLOSED') status,
        a.notify_count,
        a.alert_id
   from alert_table a
- where ready_notify=1
-   and alert_can_notify_yn (
-          p_alert_name=>a.alert_name,
-          p_alert_level=>a.alert_level,
-          p_alert_info=>a.alert_info,
-          p_alert_type=>a.alert_type,
-          p_alert_view=>a.alert_view)='y'
-   and opened <= systimestamp - numtodsinterval(nvl(alert_delay, 0), 'minute');
+ where ready_notify=1;
 
 create or replace trigger insert_alert_table_trg 
    before insert or update on alert_table for each row 
 begin 
    :new.alert_info := substr(:new.alert_info, 1, 4000);
+end;
+/
+
+create or replace procedure check_ready_notify as 
+   cursor alerts is select * from alerts_ready_notify;
+begin 
+   for a in alerts loop
+      -- ToDo: Add code to send alerts
+      debug('Fake send email for alert: '||a.alert_name);
+      update alert_table
+         set ready_notify=0,
+             last_notify=systimestamp
+       where alert_id=a.alert_id;
+   end loop;
 end;
 /

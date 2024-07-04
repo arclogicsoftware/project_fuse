@@ -16,7 +16,7 @@ select status,
        alert_type,
        hrs_open,
        alert_info
- from alerts_notify_report
+ from alerts_ready_notify
  order by to_number(hrs_open);
 
 set lines 140
@@ -51,9 +51,9 @@ col machine format a20
 select
 level lock_level,
        --blocking_session_status,
-      -- LPAD(' ', (level-1)*2, ' ') || nvl(s.username, '(oracle)') as username,
+       -- LPAD(' ', (level-1)*2, ' ') || nvl(s.username, '(oracle)') as username,
              nvl(s.username, '(oracle)') as username,
-     s.osuser,
+       s.osuser,
        p.spid processid,
        s.process clientpid,
        s.inst_id,
