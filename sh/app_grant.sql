@@ -43,6 +43,7 @@ grant select on dba_profiles to &username;
 grant select on unified_audit_trail to &username;
 grant alter user to &username;
 grant execute on dbms_lock to &username;
+grant alter system to &username;
 
 
 -- Style 1

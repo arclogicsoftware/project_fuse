@@ -1393,3 +1393,30 @@ begin
    end if;
 end;
 /
+
+create or replace procedure kill_session (
+   p_sid in number, 
+   p_instance_number in number default null) as
+   v_count number;
+   v_serial number;
+   v_instance number;
+begin
+    -- Check the number of sessions with the given sid and instance number
+    if p_instance_number is null then
+        select count(*) into v_count from gv$session where sid = p_sid;
+    else
+        select count(*) into v_count from gv$session where sid = p_sid and inst_id = p_instance_number;
+    end if;
+    
+    if v_count = 1 or p_instance_number is not null then
+        -- Get the serial# and instance# of the session
+        if p_instance_number is null then
+            select serial#, inst_id into v_serial, v_instance from gv$session where sid = p_sid;
+        else
+            select serial#, inst_id into v_serial, v_instance from gv$session where sid = p_sid and inst_id = p_instance_number;
+        end if;
+        -- Kill the session using the instance number
+        execute immediate 'alter system kill session ''' || p_sid || ',' || v_serial || ',@' || v_instance || ''' immediate';
+    end if;
+end;
+/

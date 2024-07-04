@@ -125,6 +125,12 @@ begin
       -- Is the hh24_avg or the last value / hr_ref.
       rolling_stat_value varchar2(512) default null,
       rolling_hh24_pct_of_ref varchar2(512) default null,
+      below_ref_mi number default 0,
+      above_ref_mi number default 0,
+      ddd_below_ref_hrs number default 0,
+      ddd_above_ref_hrs number default 0,
+      mm_below_ref_days number default 0,
+      mm_above_ref_days number default 0,
       -- stage, inactive, active.
       status varchar2(16) default 'stage',
       hour number default null,
