@@ -6,6 +6,8 @@ create or replace package app_alert is
    
    g_timer timer_type;
 
+   procedure evaluate_alerts;
+   
    function get_notify_count (
       p_alert_name in varchar2, 
       p_hours in number default 0) return number;

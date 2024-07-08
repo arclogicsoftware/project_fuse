@@ -102,4 +102,9 @@ drop public synonym alerts_notify_report;
 
 exec drop_view('alerts_notify_report');
 
+exec drop_package('assert');
+exec drop_package('app_tests');
+exec drop_procedure('init_test');
+exec drop_procedure('assert2');
+
 commit;

@@ -24,8 +24,6 @@ begin
 end;
 /
 
-exec drop_view('alerts_notify_report');
-
 create or replace view alerts_ready_notify as
 select decode(closed, null, 'OPEN', 'CLOSED') status,
        a.alert_level,
@@ -53,8 +51,23 @@ begin
       debug('Fake send email for alert: '||a.alert_name);
       update alert_table
          set ready_notify=0,
-             last_notify=systimestamp
+             last_notify=systimestamp at time zone 'UTC',
+             notify_count=notify_count+1
        where alert_id=a.alert_id;
    end loop;
+end;
+/
+
+-- exec drop_scheduler_job('check_ready_notify_job');
+begin
+  if not does_scheduler_job_exist('check_ready_notify_job') then 
+     dbms_scheduler.create_job (
+       job_name        => 'check_ready_notify_job',
+       job_type        => 'PLSQL_BLOCK',
+       job_action      => 'begin check_ready_notify; end;',
+       start_date      => systimestamp,
+       repeat_interval => 'freq=minutely;interval=5',
+       enabled         => false);
+   end if;
 end;
 /

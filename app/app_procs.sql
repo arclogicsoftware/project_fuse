@@ -13,102 +13,42 @@ begin
 end;
 /
 
-exec drop_table('test_table');
-begin
-   if not does_table_exist('test_table') then 
-      execute immediate '
-      create table test_table (
-      test_id number generated always as identity,
-      test_name varchar2(1024) not null,
-      last_try timestamp default null,
-      -- pass, fail, error
-      status varchar2(8) default null,
-      status_time timestamp default null,
-      test_group varchar2(256) default null)';
-   end if;
-   add_primary_key('test_table', 'test_id');
-   if not does_index_exist('test_table_1') then 
-      execute immediate 'create unique index test_table_1 on test_table(test_name)';
-   end if;
-end;
-/
-
 create or replace procedure init_test (
-   p_name in varchar2,
-   p_group in varchar2 default null) is 
+   p_name in varchar2) is 
+begin 
+   app_test.test_name := p_name;
+end;
+/
+
+create or replace procedure pass_test is 
+begin 
+   log_text (
+      p_text=>app_test.test_name,
+      p_type=>'test_pass',
+      p_expires=>systimestamp + interval '30' day);
+end;
+/
+
+create or replace procedure fail_test (
+   p_text in varchar2 default null) is 
+begin 
+   log_text (
+      p_text=>app_test.test_name||': '||p_text,
+      p_type=>'test_fail',
+      p_expires=>systimestamp + interval '30' day);
+   raise_application_error(-20000, 'Test failed: '||app_test.test_name||': '||p_text);
+end;
+/
+
+create or replace procedure assert (
+   p_test in boolean,
+   p_text in varchar2) is 
 begin
-   assert.g_test_table.test_name := p_name;
-   assert.g_test_table.test_group := p_group;
-   fail_test;
-end;
-/
-
-create or replace procedure pass_test (
-   p_name in varchar2 default assert.g_test_table.test_name,
-   p_group in varchar2 default assert.g_test_table.test_group) is 
-begin 
-   -- Assume it is already passing
-   update test_table set last_try=systimestamp
-    where test_name=assert.g_test_table.test_name and nvl(test_group, '~')=nvl(assert.g_test_table.test_group, '~')
-      and status = 'pass';
-   if sql%rowcount = 0 then 
-      -- Maybe was not already passing
-      update test_table set status='pass', last_try=systimestamp, status_time=systimestamp
-       where test_name=assert.g_test_table.test_name and nvl(test_group, '~')=nvl(assert.g_test_table.test_group, '~')
-         and status != 'pass';
-      if sql%rowcount = 0 then
-         -- Row must not exist yet
-         if sql%rowcount = 0 then 
-            insert into test_table (
-            test_name,
-            status,
-            status_time,
-            last_try,
-            test_group) values (
-            assert.g_test_table.test_name,
-            'pass',
-            systimestamp,
-            systimestamp,
-            assert.g_test_table.test_group);
-         end if;
-      end if;
-   end if;
-   assert.g_test_table := null;
-end;
-/
-
-create or replace procedure fail_test is 
-begin 
-   -- Assume it is already passing
-   update test_table set last_try=systimestamp
-    where test_name=assert.g_test_table.test_name and nvl(test_group, '~')=nvl(assert.g_test_table.test_group, '~')
-      and status = 'fail';
-   if sql%rowcount = 0 then 
-      -- Maybe was not already passing
-      update test_table set status='pass', last_try=systimestamp, status_time=systimestamp
-       where test_name=assert.g_test_table.test_name and nvl(test_group, '~')=nvl(assert.g_test_table.test_group, '~')
-         and status != 'fail';
-      if sql%rowcount = 0 then
-         -- Row must not exist yet
-         if sql%rowcount = 0 then 
-            insert into test_table (
-            test_name,
-            status,
-            status_time,
-            last_try,
-            test_group) values (
-            assert.g_test_table.test_name,
-            'fail',
-            systimestamp,
-            systimestamp,
-            assert.g_test_table.test_group);
-         end if;
-      end if;
+   if not p_test then 
+      fail_test(p_text);
    end if;
 end;
 /
-
-
 
 -- declare 
 --    n number;

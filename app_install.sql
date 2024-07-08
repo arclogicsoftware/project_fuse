@@ -26,13 +26,13 @@ exec drop_scheduler_job('run_minutely_job');
 @app/sql_monitor_pkgb.sql
 @app/sensor_pkgh.sql
 @app/sensor_pkgb.sql
-@app/assert_pkgh.sql
-@app/assert_pkgb.sql
 @app/app_format.sql
 @app/app_json_pkgh.sql
 @app/app_json_pkgb.sql
 @app/app_api_pkgh.sql
 @app/app_api_pkgb.sql
+@app/app_test_pkgh.sql
+@app/app_test_pkgb.sql
 @app/app_procs.sql
 @app/update_object_size_data_proc.sql
 @app/more_stat_stuff.sql
@@ -43,7 +43,6 @@ exec drop_scheduler_job('run_minutely_job');
 @prc/install_prc.sql
 @app/app_synonyms.sql
 @app/app_schedules.sql
-@app/app_tests.sql
 @app/backup_privs.sql
 -- To be provided by customer.
 @app/app_customer.sql
