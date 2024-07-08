@@ -10,7 +10,7 @@ exec drop_scheduler_job('monitor_blocked_sessions_job');
 exec drop_scheduler_job('update_sql_ptiles');
 exec drop_scheduler_job('run_minutely_job');
 
-@app/app_patch.sql
+@app/app_patch_pre.sql
 @app/arcsql.sql
 @app/app_schema.sql
 @app/app_config.sql

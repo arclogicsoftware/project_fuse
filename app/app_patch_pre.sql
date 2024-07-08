@@ -91,8 +91,6 @@ end;
 
 exec drop_scheduler_job('update_sql_ptiles');
 
-exec drop_procedure('execute_sql');
-
 exec drop_procedure('apply_alert_rules');
 
 exec drop_view('SQL_LOG_AVG_HRS_SINCE_LAST_EXE');
@@ -110,3 +108,7 @@ exec drop_table('test_table');
 
 delete from stat_table where stat_group='table_size';
 commit;
+
+
+
+
