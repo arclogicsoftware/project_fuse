@@ -3,43 +3,44 @@ create or replace package body app_alert is
 procedure evaluate_alerts is
    cursor alerts is 
    select * from alert_table
-    where updated >= systimestamp at time zone 'UTC' - interval '1' day;
+    where updated >= systimestamp - interval '1' day;
    v_notify number := 0;
 begin
    for a in alerts loop 
-      if a.ready_notify=1 or
-         alert_can_notify_yn (
+      -- Continue to next record if alert can not notify.
+      if alert_can_notify_yn (
             p_alert_name=>a.alert_name,
             p_alert_level=>a.alert_level,
             p_alert_info=>a.alert_info,
             p_alert_type=>a.alert_type,
-            p_alert_view=>a.alert_view) = 'n' or
-         (a.closed is not null and a.last_notify is not null and a.last_notify < a.closed) then 
-         v_notify := a.ready_notify;
-      elsif a.closed is not null then  -- Closed
-         if (a.last_eval < a.closed or a.last_eval is null) then
-            v_notify := 1;
-         end if;
-      else -- Open
-         debug('Alert is open');
-         if (a.opened > a.last_eval or a.last_eval is null) then -- and
-            -- a.opened <= systimestamp - numtodsinterval(nvl(a.alert_delay, 0), 'minute') then 
-            v_notify := 1;
-         end if;
-         if a.last_notify is not null then 
-            debug('last_notify+notify_interval: ' || to_char(a.last_notify + numtodsinterval(nvl(a.notify_interval, 0), 'minute'), 'YYYY-MM-DD HH24:MI:SS.FF TZR'));
-            debug('systimestamp at time zone UTC: '|| systimestamp at time zone 'UTC');
-            if a.last_notify + numtodsinterval(nvl(a.notify_interval, 0), 'minute') > systimestamp at time zone 'UTC' then 
-               debug('Notify interval exceeded');
-               v_notify := 1;
-            else 
-               debug('Notify interval not met');
-            end if;
-         end if;
-         debug('v_notify='||v_notify);
+            p_alert_view=>a.alert_view) = 'n' then 
+         continue;
       end if;
+      -- Continue to next record if alert is already marked to notify.
+      if a.ready_notify = 1 then 
+         continue;
+      end if;
+      -- Continue to next record if the alert_delay has not been met.
+      if a.opened + numtodsinterval(nvl(a.alert_delay, 0), 'minute') > systimestamp then 
+         debug('Alert delay not met');
+         continue;
+      end if;
+      -- Continue to next record if the alert is closed and last_eval is after the close date.
+      if a.closed is not null and a.closed >= a.last_eval then 
+         continue;
+      end if;
+      if a.notify_count = 0 then 
+         v_notify := 1;
+      end if;
+      -- Check for subsequent notifications if notify interval is set.
+      if a.notify_count > 0 and 
+         a.notify_interval > 0 and 
+         a.last_notify + numtodsinterval(a.notify_interval, 'minute') < systimestamp then 
+         v_notify := 1;
+      end if;
+      debug('v_notify='||v_notify);
       update alert_table 
-         set last_eval=systimestamp at time zone 'UTC',
+         set last_eval=systimestamp,
              ready_notify=v_notify
        where alert_id=a.alert_id;
    end loop;
@@ -55,7 +56,7 @@ begin
    select count(*) into n 
      from alert_table 
     where alert_name=p_alert_name 
-      and last_notify >= systimestamp at time zone 'UTC' - interval '1' hour * p_hours;
+      and last_notify >= systimestamp - interval '1' hour * p_hours;
    return n;
 end;
 
@@ -66,7 +67,7 @@ procedure close_alert (
    pragma autonomous_transaction;
 begin 
    update alert_table 
-      set closed=systimestamp at time zone 'UTC'
+      set closed=systimestamp
     where alert_name=p_alert_name
       and nvl(alert_type, '~')=nvl(p_alert_type, '~')
       and closed is null;
@@ -99,7 +100,7 @@ begin
    update alert_table
       set alert_level=p_alert_level,
           alert_info=p_alert_info,
-          updated=systimestamp at time zone 'UTC'
+          updated=systimestamp
     where alert_name=p_alert_name
       and nvl(alert_type, '~')=nvl(p_alert_type, '~')
       and closed is null;
@@ -144,7 +145,7 @@ begin
       end loop;
    exception
       when others then 
-         log_text(p_text=>p_view_name||': '||dbms_utility.format_error_stack, p_type=>'error', p_expires=>systimestamp at time zone 'UTC'+1);
+         log_text(p_text=>p_view_name||': '||dbms_utility.format_error_stack, p_type=>'error', p_expires=>systimestamp + interval '1' day);
    end;
 end;
 
@@ -152,10 +153,10 @@ procedure check_close (
    p_view_name in varchar2) is
 begin 
    update alert_table
-      set closed=systimestamp at time zone 'UTC'
+      set closed=systimestamp
     where alert_view=p_view_name 
       and closed is null
-      and secs_between_timestamps(systimestamp at time zone 'UTC', updated) > 30;
+      and secs_between_timestamps(systimestamp, updated) > 30;
 end;
 
 procedure merge_alert_short (
@@ -184,7 +185,7 @@ begin
          end loop;
       exception
          when others then 
-            log_text(p_text=>p_view_name||': '||dbms_utility.format_error_stack, p_type=>'error', p_expires=>systimestamp at time zone 'UTC'+1);
+            log_text(p_text=>p_view_name||': '||dbms_utility.format_error_stack, p_type=>'error', p_expires=>systimestamp + interval '1' day);
       end;
    -- If the view does not have a column named "VALUE".
    else 
@@ -199,7 +200,7 @@ begin
                p_alert_view=>p_view_name);
          exception
             when others then 
-               log_text(p_text=>p_view_name||': '||dbms_utility.format_error_stack, p_type=>'error', p_expires=>systimestamp at time zone 'UTC'+1);
+               log_text(p_text=>p_view_name||': '||dbms_utility.format_error_stack, p_type=>'error', p_expires=>systimestamp + interval '1' day);
          end;
       end if;
    end if;

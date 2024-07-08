@@ -51,7 +51,7 @@ begin
       debug('Fake send email for alert: '||a.alert_name);
       update alert_table
          set ready_notify=0,
-             last_notify=systimestamp at time zone 'UTC',
+             last_notify=systimestamp,
              notify_count=notify_count+1
        where alert_id=a.alert_id;
    end loop;

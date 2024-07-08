@@ -47,14 +47,14 @@ end;
 
 begin
    -- 7/5/2024 - Backup data so we can drop and rebuild with time zone in timestamps.
-   if not does_table_exist('alert_table_tz_back') and does_table_exist('alert_table') then 
-      execute immediate 'create table alert_table_tz_back as (select * from alert_table)';
+   if not does_table_exist('alert_table_tz_back2') and does_table_exist('alert_table') then 
+      execute immediate 'create table alert_table_tz_back2 as (select * from alert_table)';
       drop_table('alert_table');
    end if;
 end;
 /
 
-exec drop_table('alert_table');
+-- exec drop_table('alert_table');
 begin 
    if not does_table_exist('alert_table') then 
       execute immediate q'<create table alert_table (
@@ -70,7 +70,7 @@ begin
          -- Number of times a notification was sent
          notify_count         number         default 0,
          -- Last time a notification was sent.
-         last_notify          timestamp      default null,
+         last_notify          timestamp with time zone default null,
          -- Set to 1 when you want the alert to get picked up for the next notification.
          ready_notify         number         default 0,
          -- When the alert was opened.
@@ -98,6 +98,19 @@ begin
    end if;
    if not does_column_exist('alert_table', 'notify_interval') then 
       execute immediate q'<alter table alert_table add (notify_interval number default 0 not null)>';
+   end if;
+end;
+/
+
+declare 
+   n number;
+begin
+   select count(*) into n from alert_table_tz_back2;
+   if n > 0 then 
+      insert into alert_table ( alert_level, alert_name, alert_info, alert_type, notify_count, last_notify, ready_notify, opened, updated, closed, alert_view)
+         (select alert_level, alert_name, alert_info, alert_type, notify_count, last_notify, ready_notify, opened, updated, closed, alert_view from alert_table_tz_back2);
+      delete from alert_table_tz_back2;
+      commit;
    end if;
 end;
 /

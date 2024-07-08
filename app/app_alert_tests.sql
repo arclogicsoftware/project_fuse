@@ -28,8 +28,8 @@ begin
       0, -- notify_count
       null, -- last_notify
       0, -- ready_notify
-      SYSTIMESTAMP at time zone 'UTC', -- opened
-      SYSTIMESTAMP at time zone 'UTC', -- updated
+      systimestamp, -- opened
+      systimestamp, -- updated
       null, -- closed
       null, -- last_eval
       null, -- alert_view
@@ -43,7 +43,7 @@ declare
    a alert_table%rowtype;
    procedure fetch_app_alert_test_row is
    begin 
-      select * from alert_table into a where alert_name='test';
+      select * into a from alert_table where alert_name='test';
    end;
 begin
    
@@ -55,7 +55,7 @@ begin
    assert(a.ready_notify=0, 'ready_notify should be 0 if app_alert.evaluate_alerts has not run.');
    app_alert.evaluate_alerts;
    fetch_app_alert_test_row;
-   assert(a.ready_notify=1, 'RUnning app_alert.evaluate_alerts should mark it ready notify.');
+   assert(a.ready_notify=1, 'Running app_alert.evaluate_alerts should mark it ready notify.');
    pass_test;
 
    -- Run check_ready_notify, notification should be sent, ready_notify should be reset, there should be a last_notify timestamp.
@@ -66,11 +66,11 @@ begin
    assert(a.ready_notify=0, 'Ready notify should have been reset back to zero.');
    assert(a.last_notify is not null, 'Last notify should be set.');
    pass_test;
-
+   
    -- Test that the alert does not notify again. Notify interval is 0 so this should only notify once.
    init_test('app_alert_test_3');
    app_alert.evaluate_alerts;
-   check_ready_notify
+   check_ready_notify;
    fetch_app_alert_test_row;
    assert(a.notify_count=1, 'Notification count should still be 1.');
    assert(a.ready_notify=0, 'Ready notify should still be 0.');
@@ -117,5 +117,6 @@ begin
 end;
 /
 
-select * from alert_table;
+select * from alert_table where alert_name='test';
 select * from log_table order by 1 desc;
+

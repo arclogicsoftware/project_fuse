@@ -46,7 +46,7 @@ exec drop_scheduler_job('run_minutely_job');
 @app/backup_privs.sql
 -- To be provided by customer.
 @app/app_customer.sql
-
+@app/app_patch_post.sql
 @fuse/install_fuse.sql
 
 begin 
