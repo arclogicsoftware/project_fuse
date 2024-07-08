@@ -639,23 +639,3 @@ begin
    add_primary_key('json_data', 'json_data_id');
 end;
 /
-
-exec drop_table('test_table');
-begin
-   if not does_table_exist('test_table') then 
-      execute immediate '
-      create table test_table (
-      test_id number generated always as identity,
-      test_name varchar2(1024) not null,
-      last_try timestamp default null,
-      -- pass, fail, error
-      status varchar2(8) default null,
-      status_time timestamp default null,
-      test_group varchar2(256) default null)';
-   end if;
-   add_primary_key('test_table', 'test_id');
-   if not does_index_exist('test_table_1') then 
-      execute immediate 'create unique index test_table_1 on test_table(test_name)';
-   end if;
-end;
-/
