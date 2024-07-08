@@ -108,4 +108,5 @@ exec drop_procedure('init_test');
 exec drop_procedure('assert2')
 exec drop_table('test_table');
 
+delete from stat_table where stat_group='table_size';
 commit;
