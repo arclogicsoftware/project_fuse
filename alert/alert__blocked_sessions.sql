@@ -7,7 +7,9 @@ create or replace view alert__blocked_sessions as
 select 'warning' alert_level,
        'database' alert_type,
        'blocked_sessions' alert_name,
-       'IS BLOCKED='||value alert_info
+       value||' BLOCKED SESSIONS' alert_info,
+       60 notify_interval,
+       0 alert_delay
   from
        (
 		select count(*) value

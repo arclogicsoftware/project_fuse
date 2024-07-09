@@ -43,6 +43,8 @@ select * from jde_run_batch_summary;
 select * from jde_run_batch_monthly;
 select * from jde_run_batch_daily;
 
+select * from jde_run_batch;
+
 select status, job_name, trunc(log_date), count(*) 
   from DBA_SCHEDULER_JOB_RUN_DETAILS 
  where trunc(log_date) >= systimestamp - interval '1' month and status='FAILED'
@@ -75,9 +77,14 @@ select * from gv$instance;
 select * from gv$database;
 select * from instance_uptime;
 
+select * from v$parameter where name like '%dest%';
+select * from v$parameter where name like '%recovery%';
+
 select * from gv$option where parameter = 'Unified Auditing';
 
 select segment_name, status,tablespace_name from dba_rollback_segs;
+
+select * from dba_tablespaces;
 
 select * from tsinfo order by 6 desc;
 select * from tsinfo where free_gb < 7 and can_extend_gb < 7 order by 6 desc;
@@ -85,23 +92,15 @@ select count(*), status, encrypted from dba_tablespaces group by status, encrypt
 select * from dba_tablespaces where status='OFFLINE';
 select * from  dba_encrypted_columns;
 
-select * from obj_size_data order by apr desc;
+select * from obj_size_data order by jun desc;
+
+select to_gb(bytes), segment_name, owner, segment_type from dba_segments where owner='SMARTEAM' order by 1 desc;
 
 select to_char(sysdate, 'HH24') from dual;
 select * from sql_log_hourly_crosstab;
 select * from sql_log_daily_crosstab;
-select * from sql_log_monthly_crosstab;
+select * from sql_log_monthly_crosstab order by 7 desc;
 select * from sql_log_weekly_crosstab where hrs0_elap_this_wk > hrs1 or hrs0_elap_this_wk > hrs2;
-
-set lines 140
-set pages 100
-col sql_text format a40 trunc
-col hrs0_elap_this_wk format 99999
-col hrs1 format 99999
-col hrs2 format 99999
-
-select sql_text, hrs0_elap_this_wk, hrs1, hrs2
- from sql_log_weekly_crosstab order by 3;
 
 -- Can be used to spot events, estaimte amount of change going on in the database. 
 select * from archive_log_dist order by 1 desc;
@@ -110,9 +109,28 @@ select * from flash_recovery_area_space;
 select * from asm_space;
 select * from v$asm_disk where name is null;
 
+
+select * from dba_datapump_jobs;
+
 select * from alert_table where closed is not null order by closed desc;
 select * from alert_table where closed is null order by opened desc;
 delete from alert_table;
+
+select * from sql_log where sql_id='2u48sxjnmm9cj' order by 8 desc;
+
+select * from sql_log where force_matching_signature=17013432521490503953 order by 8 desc;
+
+desc sql_log;
+
+update sql_log a 
+       set a.fms_elapsed_seconds=(
+           select sum(elapsed_seconds)
+              from sql_log b
+            where b.datetime=trunc(sysdate, 'HH24') 
+              and b.force_matching_signature=17013432521490503953
+              and b.force_matching_signature!=0)
+     where a.datetime = trunc(sysdate, 'HH24')
+       and a.force_matching_signature!=0;
 
 declare
   l_warning  varchar2(2) := '97';
@@ -157,7 +175,7 @@ delete from blocked_sessions_hist where insert_time < systimestamp-31;
 
 select * from sensor_table order by last_time desc;
 select count(*), sensor_id, trunc(created) from sensor_hist group by sensor_id, trunc(created) order by 3 desc;
-select * from sensor_hist where sensor_id=1 order by created desc;
+select * from sensor_hist where sensor_id=62 order by created desc;
 
 select * from sql_log_hourly_stat order by 1 desc, 2 desc;
 select * from sql_log_weekly_stat order by 1 desc;
@@ -202,7 +220,7 @@ select sql_text,
        sum(executions) total_executes, 
        round(sum(elapsed_seconds)/sum(executions), 2) secs_per_exe
   from sql_log
- where datetime>=sysdate-8/24
+ where datetime>=sysdate-2/24
  group
     by sql_text
  order by 2 desc;
@@ -394,6 +412,7 @@ select * from v$rman_status a
  where status = 'COMPLETED' order by end_time desc;
 
 
+
 select * from tsinfo order by 6 desc;
 
 select * from asm_space;
@@ -404,14 +423,16 @@ select round(a.bytes/1024/1024/1024) gb, round(a.maxbytes/1024/1024/1024) maxgb,
  where tablespace_name='SYSAUX';
 
 select to_gb(a.bytes) gb, to_gb(a.maxbytes) maxgb, a.* from dba_data_files a 
- where tablespace_name='SY920T' order by get_file_name(file_name);
+ where tablespace_name='CRPDTAI' order by get_file_name(file_name);
  
 select sum(jun), sum(jul) from obj_size_data where tablespace_name='SVM920T';
 
-alter tablespace SY920T add datafile '/u13/oradata/jdeprd/sy920t29.dbf' size 5g;
+alter tablespace CRPDTAI add datafile '/u16/oradata/jdepy/crpdtai121.dbf' size 34358689792;
+alter tablespace CRPDTAI add datafile '/u16/oradata/jdepy/crpdtai122.dbf' size 34358689792;
+alter tablespace CRPDTAI add datafile '/u16/oradata/jdepy/crpdtai123.dbf' size 34358689792;
 
 -- /u07/oradata/jdeprd/proddtai85.dbf
-define f='/u13/oradata/jdeprd/sy920t29.dbf';
+define f='/u07/oradata/jdeprd/sy920i04.dbf';
 alter database datafile '&f' autoextend on maxsize 34358689792;
 alter database datafile '&f' resize 34358689792;
 

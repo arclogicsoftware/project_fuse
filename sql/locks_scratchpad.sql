@@ -59,10 +59,12 @@ select * from v$session where sid in (5234, 2663, 5705, 2196, 6791, 1625);
 
 select * from dba_datapump_jobs;
 
-select * from v$sql where sql_id='gqdyntaz1bv4b';
+select * from v$sql where sql_id='33ya5mstqcj6n';
    
 select * from blocked_sessions;
 select * from blocked_sessions_hist order by insert_time desc;
+
+select systimestamp from dual;
 
 select * from alert_table order by opened desc;
    
