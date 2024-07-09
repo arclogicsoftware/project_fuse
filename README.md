@@ -130,3 +130,77 @@ END;
 - **Counting Sessions**: The `SELECT COUNT(*) INTO n FROM v$session WHERE type != 'BACKGROUND'` statement counts the number of active sessions excluding background sessions.
 - **Opening an Alert**: If the session count exceeds 1000, `app_alert.open_alert` is called to open an alert. If the alert is already open, it updates the `alert_info` value if it has changed.
 - **Closing an Alert**: If the session count is 1000 or below, `app_alert.close_alert` is called to close the alert. If the alert is not open, this call does not raise an error.
+
+
+Your section on alert customization and control is clear, but it could benefit from a few enhancements for better readability and comprehension. Here are some suggestions:
+
+1. **Clarify the purpose of the `modifications.sql` file**.
+2. **Improve the explanation of the `alert_can_open_yn` function**.
+3. **Add a detailed example to demonstrate customization**.
+4. **Ensure consistent formatting**.
+
+### Alert Customization and Control
+
+When you run `app_install.sql` for the first time, Fuse generates an empty `modifications.sql` file. You can use this file to customize and modify the environment as required.
+
+#### `alert_can_open_yn` Function
+
+The `alert_can_open_yn` function is used to determine if an alert should be opened. You can customize this function to allow or prevent alerts based on the provided parameters. The parameters are passed to the function automatically from the `app_alert` package.
+
+```sql
+CREATE OR REPLACE FUNCTION alert_can_open_yn (
+   p_alert_name IN VARCHAR2,
+   p_alert_level IN VARCHAR2,
+   p_alert_info IN VARCHAR2,
+   p_alert_type IN VARCHAR2,
+   p_alert_view IN VARCHAR2
+) RETURN VARCHAR2 IS 
+BEGIN
+   RETURN 'y';
+END;
+/
+```
+
+Here’s an example of how you might customize the `alert_can_open_yn` function to allow alerts only for critical database issues:
+
+```sql
+CREATE OR REPLACE FUNCTION alert_can_open_yn (
+   p_alert_name IN VARCHAR2,
+   p_alert_level IN VARCHAR2,
+   p_alert_info IN VARCHAR2,
+   p_alert_type IN VARCHAR2,
+   p_alert_view IN VARCHAR2
+) RETURN VARCHAR2 IS 
+BEGIN
+   IF p_alert_level = 'critical' AND p_alert_type = 'database' THEN
+      RETURN 'y';
+   ELSE
+      RETURN 'n';
+   END IF;
+END;
+/
+```
+
+In this example, the function allows an alert to open only if it is of `critical` level and the type is `database`. For all other alerts, the function returns 'n', preventing the alert from being opened.
+
+#### `alert_can_notify_yn` Function
+
+The `alert_can_notify_yn` function determines if an alert should trigger a notification. You can customize this function to prevent or allow notifications based on the provided parameters. The parameters are passed to the function automatically from the `app_alert` package.
+
+```sql
+CREATE OR REPLACE FUNCTION alert_can_notify_yn (
+   p_alert_name IN VARCHAR2,
+   p_alert_level IN VARCHAR2,
+   p_alert_info IN VARCHAR2,
+   p_alert_type IN VARCHAR2,
+   p_alert_view IN VARCHAR2
+) RETURN VARCHAR2 IS 
+BEGIN
+   IF p_alert_level = 'info' THEN 
+      RETURN 'n';
+   END IF;
+   RETURN 'y';
+END;
+/
+```
+
