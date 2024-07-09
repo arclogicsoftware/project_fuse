@@ -148,6 +148,7 @@ When you run `app_install.sql` for the first time, Fuse generates an empty `modi
 The `alert_can_open_yn` function is used to determine if an alert should be opened. You can customize this function to allow or prevent alerts based on the provided parameters. The parameters are passed to the function automatically from the `app_alert` package.
 
 ```sql
+-- Source: app/app_alert.sql
 CREATE OR REPLACE FUNCTION alert_can_open_yn (
    p_alert_name IN VARCHAR2,
    p_alert_level IN VARCHAR2,
@@ -164,6 +165,7 @@ END;
 Here’s an example of how you might customize the `alert_can_open_yn` function to allow alerts only for critical database issues:
 
 ```sql
+-- Source: app/app_alert.sql
 CREATE OR REPLACE FUNCTION alert_can_open_yn (
    p_alert_name IN VARCHAR2,
    p_alert_level IN VARCHAR2,
