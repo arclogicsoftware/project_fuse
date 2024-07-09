@@ -16,7 +16,7 @@ cat ./app/collect_stat_pkgh.sql
 echo ""
 cat ./app/collect_stat_pkgb.sql
 echo ""
-cat ./app/app_alert_procs.sql
+cat ./app/app_alert.sql
 echo ""
 cat ./app/app_alert_pkgh.sql
 echo ""
