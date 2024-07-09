@@ -44,8 +44,6 @@ exec drop_scheduler_job('run_minutely_job');
 @app/app_synonyms.sql
 @app/app_schedules.sql
 @app/backup_privs.sql
--- To be provided by customer.
-@app/app_customer.sql
 @app/app_patch_post.sql
 @fuse/install_fuse.sql
 
@@ -63,6 +61,21 @@ begin
    app_config.add_param_num(p_name=>'sql_log_ref_elapsed_mins_limit', p_num=>5);
 end;
 /
+
+spool modifications.sql append
+set head off 
+set term off
+set pages 0
+set trims on 
+set feed off
+select null from dual where 1=2;
+spool off
+set head on 
+set term on
+set pages 100
+set trims off 
+set feed on
+@modifications.sql
 
 select 'alter package '||object_name||' compile'||decode(object_type, 'PACKAGE BODY', ' body', '')||';' x
   from user_objects where status='INVALID'
