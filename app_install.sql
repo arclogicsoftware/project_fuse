@@ -33,7 +33,6 @@ exec drop_scheduler_job('run_minutely_job');
 @app/app_api_pkgb.sql
 @app/app_test_pkgh.sql
 @app/app_test_pkgb.sql
-@app/app_procs.sql
 @app/update_object_size_data_proc.sql
 @app/more_stat_stuff.sql
 @stat/install_stats.sql
@@ -54,11 +53,14 @@ begin
    app_config.add_param_num(p_name=>'object_size_data_min_mb', p_num=>100);
    app_config.add_param_num(p_name=>'collect_table_sizes_repeat_interval', p_num=>300);
    app_config.add_param_str(p_name=>'dump_table_dir', p_str=>null);
-   
+
    -- When calc avg, med, and ptiles for SQL_LOG use this many days of history.
    app_config.add_param_num(p_name=>'sql_log_ref_days', p_num=>14);
    -- Do not calc the above until elap mins for all rows of force_matching_signature exceed this # of minutes.
    app_config.add_param_num(p_name=>'sql_log_ref_elapsed_mins_limit', p_num=>5);
+    
+   -- SENSORS
+   app_config.add_param_num(p_name=>'sensor_purge_days', p_num=>365);
 end;
 /
 

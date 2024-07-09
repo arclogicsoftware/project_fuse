@@ -109,6 +109,8 @@ exec drop_table('test_table');
 delete from stat_table where stat_group='table_size';
 commit;
 
+exec drop_package('sensor_purge');
+
 
 
 

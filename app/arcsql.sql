@@ -1420,3 +1420,41 @@ begin
     end if;
 end;
 /
+
+create or replace procedure init_test (
+   p_name in varchar2) is 
+begin 
+   app_test.test_name := p_name;
+end;
+/
+
+create or replace procedure pass_test is 
+begin 
+   log_text (
+      p_text=>app_test.test_name,
+      p_type=>'test_pass',
+      p_expires=>systimestamp + interval '30' day);
+end;
+/
+
+create or replace procedure fail_test (
+   p_text in varchar2 default null) is 
+begin 
+   log_text (
+      p_text=>app_test.test_name||': '||p_text,
+      p_type=>'test_fail',
+      p_expires=>systimestamp + interval '30' day);
+   raise_application_error(-20000, 'Test failed: '||app_test.test_name||': '||p_text);
+end;
+/
+
+create or replace procedure assert (
+   p_test in boolean,
+   p_text in varchar2) is 
+begin
+   if not p_test then 
+      fail_test(p_text);
+   end if;
+end;
+/
+

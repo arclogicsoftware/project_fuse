@@ -1,4 +1,5 @@
 
+-- Create a custom version of this function in modifications.sql file to supress or allow opening alerts.
 create or replace function alert_can_open_yn (
    p_alert_name in varchar2,
    p_alert_level in varchar2,
@@ -10,6 +11,7 @@ begin
 end;
 /
 
+-- Create a custom version of this function in modifications.sql to supress or allow alert notifications.
 create or replace function alert_can_notify_yn (
    p_alert_name in varchar2,
    p_alert_level in varchar2,
@@ -24,6 +26,11 @@ begin
 end;
 /
 
+-- ----------------------------------------------------------------------
+-- Do not modify objects below here in your modifications.sql file.
+-- ----------------------------------------------------------------------
+
+-- This view is used to determine which alerts are ready to be notified.
 create or replace view alerts_ready_notify as
 select decode(closed, null, 'OPEN', 'CLOSED') status,
        a.alert_level,
@@ -36,13 +43,7 @@ select decode(closed, null, 'OPEN', 'CLOSED') status,
   from alert_table a
  where ready_notify=1;
 
-create or replace trigger insert_alert_table_trg 
-   before insert or update on alert_table for each row 
-begin 
-   :new.alert_info := substr(:new.alert_info, 1, 4000);
-end;
-/
-
+-- This procedure uses the view above to send notifications if the job which calls it is enabled.
 create or replace procedure check_ready_notify as 
    cursor alerts is select * from alerts_ready_notify;
 begin 
@@ -58,6 +59,8 @@ begin
 end;
 /
 
+-- This job called the procedure above if it is enabled. It is not enabled by default.
+-- Enable the job manually or in your modifications.sql file if that is desired.
 -- exec drop_scheduler_job('check_ready_notify_job');
 begin
   if not does_scheduler_job_exist('check_ready_notify_job') then 

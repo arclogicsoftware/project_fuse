@@ -115,6 +115,13 @@ begin
 end;
 /
 
+create or replace trigger insert_alert_table_trg 
+   before insert or update on alert_table for each row 
+begin 
+   :new.alert_info := substr(:new.alert_info, 1, 4000);
+end;
+/
+
 -- exec drop_table('stat_table');
 begin
    if not does_table_exist('stat_table') then
