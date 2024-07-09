@@ -6,6 +6,8 @@ If you got this far, you have successfully installed Fuse and are ready to see w
 
 > **Alerts should be easy to create, customize, manage, and distribute. Alerts should be intelligent/adaptable.**
 
+Fuse is delivered with a number of existing alerts. Most of which can be found in the `alerts` folder. 
+
 Alerts are created by adding a row to the `ALERT_TABLE` using one of the methods described below.
 
 ### Basic Alert View
