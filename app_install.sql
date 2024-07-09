@@ -19,7 +19,7 @@ exec drop_scheduler_job('run_minutely_job');
 @app/stat_table_before_update.sql
 @app/collect_stat_pkgh.sql
 @app/collect_stat_pkgb.sql
-@app/app_alert_procs.sql
+@app/app_alert.sql
 @app/app_alert_pkgh.sql
 @app/app_alert_pkgb.sql
 @app/sql_monitor_pkgh.sql
