@@ -920,7 +920,8 @@ begin
 end;
 /
 
-create or replace function get_epoch_from_date ( -- | This function returns the epoch timestamp (number of seconds since 1970-01-01 00:00:00 UTC) corresponding to a given date input.
+create or replace function get_epoch_from_date (
+   -- Return the epoch timestamp (number of seconds since 1970-01-01 00:00:00 UTC) corresponding to a given date input.
    p_date in date default sysdate)
    return number is 
 begin 
@@ -928,7 +929,8 @@ begin
 end;
 /
 
-create or replace function get_epoch_from_timestamp ( -- | This function returns the epoch time (number of seconds since 1970-01-01 00:00:00 UTC) for a given timestamp.
+create or replace function get_epoch_from_timestamp ( 
+   -- Return the epoch time (number of seconds since 1970-01-01 00:00:00 UTC) for a given timestamp.
    p_timestamp in timestamp default systimestamp)
    return number is 
 begin 

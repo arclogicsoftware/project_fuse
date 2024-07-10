@@ -227,7 +227,7 @@ procedure check_alert_views is
       select view_name from user_views where view_name like 'ALERT\_\_%' escape '\';
    n number;
    elapsed_secs number;
-   epoch_now number := get_epoch_from_date;
+   epoch_now number := get_epoch_from_timestamp(systimestamp);
    -- This prevents long running views from running too frequently.
    target_secs_per_hr number := 50;
    max_checks_per_hour number;
@@ -240,8 +240,10 @@ begin
         from user_tab_columns 
        where table_name=v.view_name 
          and column_name='ALERT_NAME';
-
-      next_check := get_cache_num(p_key=>v.view_name||'_next_check', p_default=>0);
+s
+      -- Added _epoch which will help smooth the change to timestamp for epoch_now by resetting the next_check.
+      -- I will delete the values ending with _next_check from the cache table in app_patch_post.sql.
+      next_check := get_cache_num(p_key=>v.view_name||'_next_check_epoch', p_default=>0);
 
       if epoch_now < next_check then 
          continue;
@@ -273,7 +275,6 @@ begin
       elapsed_secs := round((sysdate-nvl(g_timer(v.view_name), sysdate))*24*60*60, 1);
 
       increment_counter(p_key=>v.view_name||'_elapsed_secs', p_num=>elapsed_secs);
-
       increment_counter(p_key=>v.view_name||'_num_checks', p_num=>1);
 
       if elapsed_secs > 0 then 
