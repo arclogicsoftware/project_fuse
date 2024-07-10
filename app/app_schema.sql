@@ -395,6 +395,40 @@ begin
 end;
 /
 
+comment on column sql_log.sql_log_id is 'Auto generated unique ID.';
+comment on column sql_log.sql_id is 'Unique identifier for the SQL statement from v$sql.';
+comment on column sql_log.sql_text is 'Partial text of the SQL statement.';
+comment on column sql_log.plan_hash_value is 'Hash value of the execution plan for the SQL statement.';
+comment on column sql_log.force_matching_signature is 'Force matching signature for the SQL statement.';
+comment on column sql_log.datetime is 'Date and hour the data in the row were collected.';
+comment on column sql_log.update_count is 'Number of times the row was updated.';
+comment on column sql_log.update_time is 'Date and time when the SQL statement was last updated.';
+comment on column sql_log.elapsed_seconds is 'Total elapsed time in seconds for the SQL statement execution.';
+comment on column sql_log.fms_elapsed_seconds is 'Elapsed time in seconds for all statements within the hour with matching force matching signature.';
+comment on column sql_log.elapsed_seconds_ptile is 'Percentile rank of the elapsed time for the SQL statement.';
+comment on column sql_log.cpu_seconds is 'Total CPU time in seconds for the SQL statement execution.';
+comment on column sql_log.user_io_wait_secs is 'Total user I/O wait time in seconds for the SQL statement.';
+comment on column sql_log.executions is 'Number of times the SQL statement has been executed.';
+comment on column sql_log.executions_ptile is 'Percentile rank of the execution count for the SQL statement.';
+comment on column sql_log.elap_secs_per_exe is 'Elapsed time in seconds per execution of the SQL statement.';
+comment on column sql_log.elap_secs_per_exe_ptile is 'Percentile rank of the elapsed time per execution.';
+comment on column sql_log.secs_0_1 is 'Sum of seconds where elapsed time between 0 and 1 seconds.';
+comment on column sql_log.secs_2_5 is 'Sum of seconds where elapsed time between 2 and 5 seconds.';
+comment on column sql_log.secs_6_10 is 'Sum of seconds where elapsed time between 6 and 10 seconds.';
+comment on column sql_log.secs_11_60 is 'Sum of seconds where elapsed time between 11 and 60 seconds.';
+comment on column sql_log.secs_61_plus is 'Sum of seconds where elapsed time over 61 seconds.';
+comment on column sql_log.sql_age_in_days is 'Age of the SQL statement in days.';
+comment on column sql_log.rows_processed is 'Total number of rows processed by the SQL statement.';
+comment on column sql_log.secs_between_snaps is 'Seconds between updates for the SQL statement.';
+comment on column sql_log.service is 'Service associated with the SQL statement.';
+comment on column sql_log.module is 'Module from which the SQL statement was executed.';
+comment on column sql_log.action is 'Action taken by the SQL statement.';
+comment on column sql_log.elap_secs_per_exe_med is 'Median elapsed time per execution of the SQL statement.';
+comment on column sql_log.elap_secs_per_exe_avg is 'Average elapsed time per execution of the SQL statement.';
+comment on column sql_log.sql_id_elap_secs_per_exe_ref is 'Reference elapsed_seconds per execute for this SQL_ID.';
+comment on column sql_log.fms_elap_secs_per_exe_ref is 'Reference elapsed seconds per execute for this force matching signature.';
+comment on column sql_log.plan_elap_secs_per_exe_ref is 'Reference elapsed seconds per exeute for this sql plan.';
+
 -- exec drop_table('config_table');
 begin
    if not does_table_exist('config_table') then

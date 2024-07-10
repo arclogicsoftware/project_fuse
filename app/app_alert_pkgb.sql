@@ -226,11 +226,9 @@ procedure check_alert_views is
    cursor alert_views is 
       select view_name from user_views where view_name like 'ALERT\_\_%' escape '\';
    n number;
+   start_time timestamp;
    elapsed_secs number;
    epoch_now number := get_epoch_from_timestamp(systimestamp);
-   -- This prevents long running views from running too frequently.
-   target_secs_per_hr number := 50;
-   max_checks_per_hour number;
    next_check number;
 begin 
    for v in alert_views loop
@@ -240,7 +238,7 @@ begin
         from user_tab_columns 
        where table_name=v.view_name 
          and column_name='ALERT_NAME';
-s
+
       -- Added _epoch which will help smooth the change to timestamp for epoch_now by resetting the next_check.
       -- I will delete the values ending with _next_check from the cache table in app_patch_post.sql.
       next_check := get_cache_num(p_key=>v.view_name||'_next_check_epoch', p_default=>0);
@@ -249,7 +247,7 @@ s
          continue;
       end if;
 
-      g_timer(v.view_name) := sysdate;
+      start_time := systimestamp;
 
       if n = 1 then 
          merge_alert_long(v.view_name);
@@ -272,16 +270,13 @@ s
             and updated < systimestamp - interval '30' second;
       end if;
 
-      elapsed_secs := round((sysdate-nvl(g_timer(v.view_name), sysdate))*24*60*60, 1);
+      elapsed_secs := secs_between_timestamps(systimestamp, start_time);
 
       increment_counter(p_key=>v.view_name||'_elapsed_secs', p_num=>elapsed_secs);
       increment_counter(p_key=>v.view_name||'_num_checks', p_num=>1);
 
-      if elapsed_secs > 0 then 
-         max_checks_per_hour := target_secs_per_hr/elapsed_secs;
-         next_check := epoch_now + (60/max_checks_per_hour*60);
-         cache_num(p_key=>v.view_name||'_next_check', p_num=>next_check);
-      end if;
+      -- The longer the view takes to run the less frequent it can run.
+      cache_num(p_key=>v.view_name||'_next_check', p_num=>epoch_now + (elapsed_secs * 60));
 
    end loop;
 

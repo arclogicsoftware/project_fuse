@@ -14,7 +14,6 @@ exec drop_scheduler_job('run_minutely_job');
 @app/arcsql.sql
 @app/app_schema.sql
 @app/app_config.sql
-@app/app_views.sql
 @app/app_triggers.sql
 @app/stat_table_before_update.sql
 @app/collect_stat_pkgh.sql
@@ -22,6 +21,7 @@ exec drop_scheduler_job('run_minutely_job');
 @app/app_alert.sql
 @app/app_alert_pkgh.sql
 @app/app_alert_pkgb.sql
+@app/sql_monitor.sql
 @app/sql_monitor_pkgh.sql
 @app/sql_monitor_pkgb.sql
 @app/sensor_pkgh.sql
@@ -96,6 +96,9 @@ alter FUNCTION SQL_TO_CSV_CLOB compile;
 alter PROCEDURE LOG_ERR compile;
 alter PROCEDURE DEBUG compile;
 alter VIEW alerts_ready_notify compile;
+alter PROCEDURE ASSERT compile;
+alter PROCEDURE PASS_TEST compile;
+alter PROCEDURE FAIL_TEST compile;
 
 select 'alter package '||object_name||' compile'||decode(object_type, 'PACKAGE BODY', ' body', '')||';' x
   from user_objects where status='INVALID'

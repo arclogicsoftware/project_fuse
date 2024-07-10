@@ -1,14 +1,26 @@
+
+
 # Fuse Documentation
 
 If you got this far, you have successfully installed Fuse and are ready to see what you can do with it.
 
-## Alerting
+## SQL MONITORING
 
-> **Alerts should be easy to create, customize, manage, and distribute. Alerts should be intelligent/adaptable.**
+## STATS
+
+## SENSORS
+
+## STORAGE/SPACE/GROWTH
+
+## ALERTING
+
+> **Alerts should be easy to create, customize, manage, and distribute. Alerts should be intelligent and adaptable.**
 
 Fuse is delivered with a number of existing alerts. Most of which can be found in the `alerts` folder. 
 
 Alerts are created by adding a row to the `ALERT_TABLE` using one of the methods described below.
+
+Alerts views are checked every 5 minutes by default. The longer an alert runs the less frequent it can run. For example, an alert that takes 20 seconds to process will not be able to run for at least another 20 minutes (20 * 60 seconds). An alert that takes 60 seconds to run will not be able to run for at least another hour (60 * 60 seconds). Ideally your views should be designed to run as fast and efficiently as possible.
 
 ### Basic Alert View
 
@@ -85,14 +97,14 @@ FROM (
 
 #### Column Descriptions
 
-| Name            | Description                                                                                         |
-|-----------------|-----------------------------------------------------------------------------------------------------|
-| `ALERT_LEVEL`   | Alert levels can be anything you want (e.g., info, warning, critical, error, fatal, etc.).          |
-| `ALERT_TYPE`    | Alert type is a category for the alert (e.g., db, os, app, etc.).                                   |
-| `ALERT_NAME`    | Alert names should be unique!                                                                       |
-| `ALERT_INFO`    | Extra alert details. You can update this throughout the life of the alert if you want.              |
-| `NOTIFY_INTERVAL` | Number of minutes to wait between repeat notifications.                                              |
-| `ALERT_DELAY`   | Number of minutes to wait before this row is allowed to notify.                                      |
+| Name             | Description                                                                                         |
+|------------------|-----------------------------------------------------------------------------------------------------|
+| `ALERT_LEVEL`    | Alert levels can be anything you want (e.g., info, warning, critical, error, fatal, etc.).          |
+| `ALERT_TYPE`     | Alert type is a category for the alert (e.g., db, os, app, etc.).                                   |
+| `ALERT_NAME`     | Alert names should be unique!                                                                       |
+| `ALERT_INFO`     | Extra alert details. You can update this throughout the life of the alert if you want.              |
+| `NOTIFY_INTERVAL`| Number of minutes to wait between repeat notifications.                                             |
+| `ALERT_DELAY`    | Number of minutes to wait before this row is allowed to notify.                                     |
 
 ### PL/SQL API
 
@@ -125,20 +137,6 @@ END;
 /
 ```
 
-#### Explanation
-
-- **Counting Sessions**: The `SELECT COUNT(*) INTO n FROM v$session WHERE type != 'BACKGROUND'` statement counts the number of active sessions excluding background sessions.
-- **Opening an Alert**: If the session count exceeds 1000, `app_alert.open_alert` is called to open an alert. If the alert is already open, it updates the `alert_info` value if it has changed.
-- **Closing an Alert**: If the session count is 1000 or below, `app_alert.close_alert` is called to close the alert. If the alert is not open, this call does not raise an error.
-
-
-Your section on alert customization and control is clear, but it could benefit from a few enhancements for better readability and comprehension. Here are some suggestions:
-
-1. **Clarify the purpose of the `modifications.sql` file**.
-2. **Improve the explanation of the `alert_can_open_yn` function**.
-3. **Add a detailed example to demonstrate customization**.
-4. **Ensure consistent formatting**.
-
 ### Alert Customization and Control
 
 When you run `app_install.sql` for the first time, Fuse generates an empty `modifications.sql` file. You can use this file to customize and modify the environment as required.
@@ -161,29 +159,6 @@ BEGIN
 END;
 /
 ```
-
-Here’s an example of how you might customize the `alert_can_open_yn` function to allow alerts only for critical database issues:
-
-```sql
--- Source: app/app_alert.sql
-CREATE OR REPLACE FUNCTION alert_can_open_yn (
-   p_alert_name IN VARCHAR2,
-   p_alert_level IN VARCHAR2,
-   p_alert_info IN VARCHAR2,
-   p_alert_type IN VARCHAR2,
-   p_alert_view IN VARCHAR2
-) RETURN VARCHAR2 IS 
-BEGIN
-   IF p_alert_level = 'critical' AND p_alert_type = 'database' THEN
-      RETURN 'y';
-   ELSE
-      RETURN 'n';
-   END IF;
-END;
-/
-```
-
-In this example, the function allows an alert to open only if it is of `critical` level and the type is `database`. For all other alerts, the function returns 'n', preventing the alert from being opened.
 
 #### `alert_can_notify_yn` Function
 

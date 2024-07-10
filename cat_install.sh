@@ -6,8 +6,6 @@ cat ./app/app_schema.sql
 echo ""
 cat ./app/app_config.sql
 echo ""
-cat ./app/app_views.sql
-echo ""
 cat ./app/app_triggers.sql
 echo ""
 cat ./app/stat_table_before_update.sql
@@ -21,6 +19,8 @@ echo ""
 cat ./app/app_alert_pkgh.sql
 echo ""
 cat ./app/app_alert_pkgb.sql
+echo ""
+cat ./app/sql_monitor.sql
 echo ""
 cat ./app/sql_monitor_pkgh.sql
 echo ""
@@ -100,8 +100,6 @@ echo ""
 cat ./sql/table_growth_rates_view.sql
 echo ""
 cat ./sql/unified_audit_review_view.sql
-echo ""
-cat ./sql/sql_log_crosstab_views.sql
 echo ""
 cat ./sql/sparse_tables_view.sql
 echo ""

@@ -4,8 +4,6 @@ create or replace package app_alert is
    
    type timer_type is table of date index by varchar2(120);
    
-   g_timer timer_type;
-
    procedure evaluate_alerts;
    
    function get_notify_count (
