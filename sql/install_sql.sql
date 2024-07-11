@@ -26,3 +26,4 @@
 @table_growth_rates_view.sql
 @unified_audit_review_view.sql
 @sparse_tables_view.sql
+@machine_last_call_day_dist.sql

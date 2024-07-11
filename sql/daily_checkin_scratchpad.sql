@@ -1,121 +1,48 @@
+SELECT 'drop table '||owner||'.'||segment_name||';' x, to_gb(bytes) gbytes, owner, segment_name table_name
+FROM dba_segments a
+WHERE segment_name LIKE 'F%\_%' ESCAPE '\' 
+  AND segment_type = 'TABLE' and bytes > 1*1024*1024*1024
+ORDER BY bytes DESC;
 
-declare  
-  h number;  
- begin  
-  h := dbms_datapump.open( operation => 'export', job_mode => 'schema', job_name=>null);  
-  dbms_datapump.add_file( handle => h, filename => 'objects.dmp', directory => 'data_pump_dir', filetype => dbms_datapump.ku$_file_type_dump_file);  
-  dbms_datapump.add_file( handle => h, filename => 'objects.log', directory => 'data_pump_dir', filetype => dbms_datapump.ku$_file_type_log_file);  
-  dbms_datapump.metadata_filter(h,'schema_expr','in (''PRODDTA'')');  
-  dbms_datapump.metadata_filter( handle => h ,name   => 'name_expr',value  =>  q'| in ('F0911','F1201','F1202')|',object_path=> 'table' ); 
-  dbms_datapump.start_job(h);  
-  end;  
-/  
+-- ------------------------------------------------------------------------------
+-- SQL - SQL PERFORMANCE - SQL LOG - OTHER SQL ISSUES
+-- ------------------------------------------------------------------------------
 
-select created "G-DATE" from dba_objects where object_name='TEST_TABLE';
+select round(cpu_time/1000000) cpu_sec, 
+       round(elapsed_time/1000000) elap_sec, 
+       executions, 
+       round(user_io_wait_time/1000000) user_io_wait_sec, 
+       rows_processed, 
+       to_gb(io_interconnect_bytes) io_interconnect_gb, 
+       to_gb(physical_read_bytes) phyrd_gb, 
+       to_gb(physical_write_bytes) phywrt_gb, 
+       sql_text
+  from v$sql
+ order by 8 desc;
 
-select username,
-       count(*),
-       last_call_days
-  from (
-select username,
-       round(last_call_et/86400) last_call_days
-  from gv$session)
-group
-  by username,
-     last_call_days
-order by 2 desc;
+select * from gv$sql where sql_id='d3nkkzv7fj5j0';
 
-select stat_name, stat_group, stat_type, stat_label, jan, feb, mar, apr, may, jun  from stat_table 
- where str_avg_list(feb||','||mar||','||apr) < may*.8 order by stat_group, decode(str_avg_list(feb||','||mar||','||apr), 0, 999, may/str_avg_list(feb||','||mar||','||apr)) desc;
-
-select username, module, program, trunc(logon_time), count(*) 
-  from v$session 
-  where program not like 'oracle@%' group by trunc(logon_time), username, module, program order by 5 desc;
+select processid, sid, serial#, username, machine, sql_id, round(last_call_et/60/60, 1) call_running_for_hours, module, logon_time from (
+select b.spid processid,
+       a.*
+  from gv$session a,
+       gv$process b
+ where a.paddr=b.addr
+   and a.inst_id=b.inst_id
+   and a.status='ACTIVE' 
+   and a.type != 'BACKGROUND' 
+   and a.module not in ('XStream') 
+   and a.last_call_et > 600);
 
 -- Check for SQL not using bind variables
 select count(*), substr(sql_text, 1, 40) from v$sql group by substr(sql_text, 1, 40) order by 1 desc;
 
-select * from obj_size_data where segment_name in ('F01131', 'F01131T',  'F01131M', 'F01133', 'F00165',  'F00166')
- order by last_size desc;
-select count(*), zmdti from proddta.f01131m group by zmdti order by 2 desc;
-
-select * from jde_run_batch_summary;
-select * from jde_run_batch_monthly;
-select * from jde_run_batch_daily;
-
-select * from jde_run_batch;
-
-select status, job_name, trunc(log_date), count(*) 
-  from DBA_SCHEDULER_JOB_RUN_DETAILS 
- where trunc(log_date) >= systimestamp - interval '1' month and status='FAILED'
- group 
-    by status, job_name, trunc(log_date) order by 3 desc, 2, 1;
-
-select sequence#,
-       to_char(completion_time, 'YYYY-MM-DD HH24:MI') completion_time,
-       inst_id,
-       thread#,
-       mins
-  from standby_completion_time_detail a order by 1 desc;
-
-select * from standby_completion_time order by 1 desc;
-
-select * from dba_tables where tablespace_name='SYSAUX' and owner in
-(select username from dba_users where oracle_maintained!='Y');
-
-select a.*
-  from dba_tables a,
-       dba_users b
- where a.owner=b.username
-   and a.tablespace_name != b.default_tablespace
-   and b.oracle_maintained='N';
-
-select * from dba_indexes where owner='PRODDTA' and tablespace_name != 'PRODDTAI';
-select * from dba_tables where owner='PRODDTA' and tablespace_name != 'PRODDTAT';
-
-select * from gv$instance;
-select * from gv$database;
-select * from instance_uptime;
-
-select * from v$parameter where name like '%dest%';
-select * from v$parameter where name like '%recovery%';
-
-select * from gv$option where parameter = 'Unified Auditing';
-
-select segment_name, status,tablespace_name from dba_rollback_segs;
-
-select * from dba_tablespaces;
-
-select * from tsinfo order by 6 desc;
-select * from tsinfo where free_gb < 7 and can_extend_gb < 7 order by 6 desc;
-select count(*), status, encrypted from dba_tablespaces group by status, encrypted;
-select * from dba_tablespaces where status='OFFLINE';
-select * from  dba_encrypted_columns;
-
-select * from obj_size_data order by jun desc;
-
-select to_gb(bytes), segment_name, owner, segment_type from dba_segments where owner='SMARTEAM' order by 1 desc;
 
 select to_char(sysdate, 'HH24') from dual;
 select * from sql_log_hourly_crosstab;
 select * from sql_log_daily_crosstab;
 select * from sql_log_monthly_crosstab order by 7 desc;
 select * from sql_log_weekly_crosstab where hrs0_elap_this_wk > hrs1 or hrs0_elap_this_wk > hrs2;
-
--- Can be used to spot events, estaimte amount of change going on in the database. 
-select * from archive_log_dist order by 1 desc;
-
-select * from flash_recovery_area_space;
-select * from asm_space;
-select * from v$asm_disk where name is null;
-
-
-select * from dba_datapump_jobs;
-
-select * from alert_table where closed is not null order by closed desc;
-select * from alert_table where closed is null order by opened desc;
-delete from alert_table;
-
 select * from sql_log where sql_id='2u48sxjnmm9cj' order by 8 desc;
 
 select * from sql_log where force_matching_signature=17013432521490503953 order by 8 desc;
@@ -132,54 +59,13 @@ update sql_log a
      where a.datetime = trunc(sysdate, 'HH24')
        and a.force_matching_signature!=0;
 
-declare
-  l_warning  varchar2(2) := '97';
-  l_critical varchar2(2) := '98';
-begin
-    dbms_server_alert.set_threshold(
-      metrics_id              => dbms_server_alert.tablespace_pct_full,
-      warning_operator        => dbms_server_alert.operator_ge,
-      warning_value           => l_warning,
-      critical_operator       => dbms_server_alert.operator_ge,
-      critical_value          => l_critical,
-      observation_period      => 1,
-      consecutive_occurrences => 1,
-      instance_name           => null,
-      object_type             => dbms_server_alert.object_type_tablespace,
-      object_name             => null);
-end;
-/
-
-select processid, sid, serial#, username, machine, sql_id, round(last_call_et/60/60, 1) call_running_for_hours, module, logon_time from (
-select b.spid processid,
-       a.*
-  from gv$session a,
-       gv$process b
- where a.paddr=b.addr
-   and a.inst_id=b.inst_id
-   and a.status='ACTIVE' 
-   and a.type != 'BACKGROUND' 
-   and a.module not in ('XStream') 
-   and a.last_call_et > 600);
-
-select * from gv$sql where sql_id='d3nkkzv7fj5j0';
-
 select * from sql_log where sql_id='d3nkkzv7fj5j0' order by update_time desc;
 
-select * from log_table order by 2 desc;
-delete from log_table;
-    
-select * from blocked_sessions;
-select * from blocked_sessions_hist order by insert_time desc;
-delete from blocked_sessions_hist where insert_time < systimestamp-31;
-
-select * from sensor_table order by last_time desc;
-select count(*), sensor_id, trunc(created) from sensor_hist group by sensor_id, trunc(created) order by 3 desc;
-select * from sensor_hist where sensor_id=62 order by created desc;
 
 select * from sql_log_hourly_stat order by 1 desc, 2 desc;
 select * from sql_log_weekly_stat order by 1 desc;
 select * from sql_log_monthly_stat order by 1 desc;
+
 
 select substr(sql_text, 1, 10) sql_text,
        force_matching_signature,
@@ -265,6 +151,216 @@ select cur.sql_id,
 select * from sql_log where sql_id='b6usrg82hwsa3' order by update_time desc;
 select * from sql_log_sql_id_hourly_stat where sql_id='b6usrg82hwsa3' order by 3 desc;
 select * from sql_log_sql_id_weekly_stat where sql_id='b6usrg82hwsa3';
+
+
+set lines 140
+set pages 1000
+
+column datetime format a25
+column mon format 9999 trunc
+column tue format 9999 trunc
+column wed format 9999 trunc
+column thu format 9999 trunc
+column fri format 9999 trunc
+column sat format 9999 trunc
+column sun format 9999 trunc
+col sql_id format a20
+col sql_text format a40 trunc
+
+prompt "ALL SQL Elapsed Time (Hours Per Day)"
+
+select datetime,
+       sum(decode(day_of_week, 'MON', x, 0)) mon,
+       sum(decode(day_of_week, 'TUE', x, 0)) tue,
+       sum(decode(day_of_week, 'WED', x, 0)) wed,
+       sum(decode(day_of_week, 'THU', x, 0)) thu,
+       sum(decode(day_of_week, 'FRI', x, 0)) fri,
+       sum(decode(day_of_week, 'SAT', x, 0)) sat,
+       sum(decode(day_of_week, 'SUN', x, 0)) sun
+  from (
+select trunc(datetime, 'iw') datetime,
+       to_char(datetime, 'DY') day_of_week,
+       round(sum(elapsed_seconds/60/60)) x
+  from sql_log 
+ where datetime >= trunc(sysdate-14)
+ group
+    by trunc(datetime, 'iw'),
+       to_char(datetime, 'DY')
+       )
+ group
+    by datetime
+ order
+    by 1 desc;
+
+prompt "SQL ID Elapsed Time (Hours Per Day)"
+
+select datetime,
+       sql_id,
+       sql_text,
+       round(sum(decode(day_of_week, 'MON', x, 0)), 1) mon,
+       round(sum(decode(day_of_week, 'TUE', x, 0)), 1) tue,
+       round(sum(decode(day_of_week, 'WED', x, 0)), 1) wed,
+       round(sum(decode(day_of_week, 'THU', x, 0)), 1) thu,
+       round(sum(decode(day_of_week, 'FRI', x, 0)), 1) fri,
+       round(sum(decode(day_of_week, 'SAT', x, 0)), 1) sat,
+       round(sum(decode(day_of_week, 'SUN', x, 0)), 1) sun,
+       round(sum(x), 1) ttl
+  from (
+select trunc(datetime, 'iw') datetime,
+       to_char(datetime, 'DY') day_of_week,
+       sql_id,
+       sql_text,
+       round(sum(elapsed_seconds/60/60), 1) x
+  from sql_log 
+ where datetime >= trunc(sysdate-4)
+ group
+    by trunc(datetime, 'iw'),
+       to_char(datetime, 'DY'),
+       sql_id,
+       sql_text
+       )
+ group
+    by datetime,
+       sql_id,
+       sql_text
+having sum(x) > 1
+ order
+    by sum(x) desc;
+
+declare  
+  h number;  
+ begin  
+  h := dbms_datapump.open( operation => 'export', job_mode => 'schema', job_name=>null);  
+  dbms_datapump.add_file( handle => h, filename => 'objects.dmp', directory => 'data_pump_dir', filetype => dbms_datapump.ku$_file_type_dump_file);  
+  dbms_datapump.add_file( handle => h, filename => 'objects.log', directory => 'data_pump_dir', filetype => dbms_datapump.ku$_file_type_log_file);  
+  dbms_datapump.metadata_filter(h,'schema_expr','in (''PRODDTA'')');  
+  dbms_datapump.metadata_filter( handle => h ,name   => 'name_expr',value  =>  q'| in ('F0911','F1201','F1202')|',object_path=> 'table' ); 
+  dbms_datapump.start_job(h);  
+  end;  
+/  
+
+
+select * from machine_last_call_day_dist;
+-- ToDo: Add username view like above.
+
+
+select stat_name, stat_group, stat_type, stat_label, jan, feb, mar, apr, may, jun  from stat_table 
+ where str_avg_list(feb||','||mar||','||apr) < may*.8 order by stat_group, decode(str_avg_list(feb||','||mar||','||apr), 0, 999, may/str_avg_list(feb||','||mar||','||apr)) desc;
+
+select username, module, program, trunc(logon_time), count(*) 
+  from v$session 
+  where program not like 'oracle@%' group by trunc(logon_time), username, module, program order by 5 desc;
+
+
+select * from obj_size_data where segment_name in ('F01131', 'F01131T',  'F01131M', 'F01133', 'F00165',  'F00166')
+ order by last_size desc;
+select count(*), zmdti from proddta.f01131m group by zmdti order by 2 desc;
+
+select * from jde_run_batch_summary;
+select * from jde_run_batch_monthly;
+select * from jde_run_batch_daily;
+select * from jde_run_batch;
+
+select status, job_name, trunc(log_date), count(*) 
+  from DBA_SCHEDULER_JOB_RUN_DETAILS 
+ where trunc(log_date) >= systimestamp - interval '1' month and status='FAILED'
+ group 
+    by status, job_name, trunc(log_date) order by 3 desc, 2, 1;
+
+select sequence#,
+       to_char(completion_time, 'YYYY-MM-DD HH24:MI') completion_time,
+       inst_id,
+       thread#,
+       mins
+  from standby_completion_time_detail a order by 1 desc;
+
+select * from standby_completion_time order by 1 desc;
+
+select * from dba_tables where tablespace_name='SYSAUX' and owner in
+(select username from dba_users where oracle_maintained!='Y');
+
+select a.*
+  from dba_tables a,
+       dba_users b
+ where a.owner=b.username
+   and a.tablespace_name != b.default_tablespace
+   and b.oracle_maintained='N';
+
+select * from dba_indexes where owner='PRODDTA' and tablespace_name != 'PRODDTAI';
+select * from dba_tables where owner='PRODDTA' and tablespace_name != 'PRODDTAT';
+
+select * from gv$instance;
+select * from gv$database;
+select * from instance_uptime;
+
+select * from v$parameter where name like '%dest%';
+select * from v$parameter where name like '%recovery%';
+
+select * from gv$option where parameter = 'Unified Auditing';
+
+select segment_name, status,tablespace_name from dba_rollback_segs;
+
+select * from dba_tablespaces;
+
+select * from tsinfo order by 6 desc;
+select * from tsinfo where free_gb < 7 and can_extend_gb < 7 order by 6 desc;
+select count(*), status, encrypted from dba_tablespaces group by status, encrypted;
+select * from dba_tablespaces where status='OFFLINE';
+select * from  dba_encrypted_columns;
+
+select * from obj_size_data order by jun desc;
+
+select to_gb(bytes), segment_name, owner, segment_type from dba_segments where owner='SMARTEAM' order by 1 desc;
+
+-- Can be used to spot events, estaimte amount of change going on in the database. 
+select * from archive_log_dist order by 1 desc;
+
+select * from flash_recovery_area_space;
+select * from asm_space;
+select * from v$asm_disk where name is null;
+
+
+select * from dba_datapump_jobs;
+
+select * from alert_table where closed is not null order by closed desc;
+select * from alert_table where closed is null order by opened desc;
+delete from alert_table;
+
+
+declare
+  l_warning  varchar2(2) := '97';
+  l_critical varchar2(2) := '98';
+begin
+    dbms_server_alert.set_threshold(
+      metrics_id              => dbms_server_alert.tablespace_pct_full,
+      warning_operator        => dbms_server_alert.operator_ge,
+      warning_value           => l_warning,
+      critical_operator       => dbms_server_alert.operator_ge,
+      critical_value          => l_critical,
+      observation_period      => 1,
+      consecutive_occurrences => 1,
+      instance_name           => null,
+      object_type             => dbms_server_alert.object_type_tablespace,
+      object_name             => null);
+end;
+/
+
+
+
+
+select * from log_table order by 2 desc;
+delete from log_table;
+    
+select * from blocked_sessions;
+select * from blocked_sessions_hist order by insert_time desc;
+delete from blocked_sessions_hist where insert_time < systimestamp-31;
+
+select * from sensor_table order by last_time desc;
+select count(*), sensor_id, trunc(created) from sensor_hist group by sensor_id, trunc(created) order by 3 desc;
+select * from sensor_hist where sensor_id=62 order by created desc;
+
+
+
 
 set lines 140
 set pages 300
@@ -451,79 +547,7 @@ select sum(objects_gb), sum(datafile_gb), sum(can_extend_gb), sum(gb_per_day)*36
 
 select * from v$asm_operation;
 
-set lines 140
-set pages 1000
 
-column datetime format a25
-column mon format 9999 trunc
-column tue format 9999 trunc
-column wed format 9999 trunc
-column thu format 9999 trunc
-column fri format 9999 trunc
-column sat format 9999 trunc
-column sun format 9999 trunc
-col sql_id format a20
-col sql_text format a40 trunc
-
-prompt "ALL SQL Elapsed Time (Hours Per Day)"
-
-select datetime,
-       sum(decode(day_of_week, 'MON', x, 0)) mon,
-       sum(decode(day_of_week, 'TUE', x, 0)) tue,
-       sum(decode(day_of_week, 'WED', x, 0)) wed,
-       sum(decode(day_of_week, 'THU', x, 0)) thu,
-       sum(decode(day_of_week, 'FRI', x, 0)) fri,
-       sum(decode(day_of_week, 'SAT', x, 0)) sat,
-       sum(decode(day_of_week, 'SUN', x, 0)) sun
-  from (
-select trunc(datetime, 'iw') datetime,
-       to_char(datetime, 'DY') day_of_week,
-       round(sum(elapsed_seconds/60/60)) x
-  from sql_log 
- where datetime >= trunc(sysdate-14)
- group
-    by trunc(datetime, 'iw'),
-       to_char(datetime, 'DY')
-       )
- group
-    by datetime
- order
-    by 1 desc;
-
-prompt "SQL ID Elapsed Time (Hours Per Day)"
-
-select datetime,
-       sql_id,
-       sql_text,
-       round(sum(decode(day_of_week, 'MON', x, 0)), 1) mon,
-       round(sum(decode(day_of_week, 'TUE', x, 0)), 1) tue,
-       round(sum(decode(day_of_week, 'WED', x, 0)), 1) wed,
-       round(sum(decode(day_of_week, 'THU', x, 0)), 1) thu,
-       round(sum(decode(day_of_week, 'FRI', x, 0)), 1) fri,
-       round(sum(decode(day_of_week, 'SAT', x, 0)), 1) sat,
-       round(sum(decode(day_of_week, 'SUN', x, 0)), 1) sun,
-       round(sum(x), 1) ttl
-  from (
-select trunc(datetime, 'iw') datetime,
-       to_char(datetime, 'DY') day_of_week,
-       sql_id,
-       sql_text,
-       round(sum(elapsed_seconds/60/60), 1) x
-  from sql_log 
- where datetime >= trunc(sysdate-4)
- group
-    by trunc(datetime, 'iw'),
-       to_char(datetime, 'DY'),
-       sql_id,
-       sql_text
-       )
- group
-    by datetime,
-       sql_id,
-       sql_text
-having sum(x) > 1
- order
-    by sum(x) desc;
     
 select distinct stat_group from stat_table;
 
@@ -575,17 +599,7 @@ end;
 /
 
 
-select round(cpu_time/1000000) cpu_sec, 
-       round(elapsed_time/1000000) elap_sec, 
-       executions, 
-       round(user_io_wait_time/1000000) user_io_wait_sec, 
-       rows_processed, 
-       to_gb(io_interconnect_bytes) io_interconnect_gb, 
-       to_gb(physical_read_bytes) phyrd_gb, 
-       to_gb(physical_write_bytes) phywrt_gb, 
-       sql_text
-  from v$sql
- order by 8 desc;
+
 
 select * from gv$archive_dest where destination is not null;
 

@@ -21,3 +21,5 @@
 @alert__new_accounts.sql
 @alert__locked_accounts.sql
 @alert__expiring_passwords.sql
+@alert__datapump_not_running.sql
+@alert__datapump_running_long.sql

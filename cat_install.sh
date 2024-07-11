@@ -103,6 +103,8 @@ cat ./sql/unified_audit_review_view.sql
 echo ""
 cat ./sql/sparse_tables_view.sql
 echo ""
+cat ./sql/machine_last_call_day_dist.sql
+echo ""
 cd alert
 ls | grep "^alert__.*sql$" | while read f; do
    echo ""

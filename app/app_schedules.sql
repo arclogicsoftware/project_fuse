@@ -72,12 +72,13 @@ end;
 /
 
 exec drop_scheduler_job('daily_am_job');
+exec drop_scheduler_job('run_daily_am_job');
 begin
-  if not does_scheduler_job_exist('daily_am_job') then 
+  if not does_scheduler_job_exist('run_daily_am_job') then 
      dbms_scheduler.create_job (
-       job_name        => 'daily_am_job',
+       job_name        => 'run_daily_am_job',
        job_type        => 'PLSQL_BLOCK',
-       job_action      => 'begin daily_am; commit; end;',
+       job_action      => 'begin daily_am_job; commit; end;',
        start_date      => systimestamp,
        repeat_interval => 'freq=daily;byhour=8;byminute=0;bysecond=0',
        enabled         => true);

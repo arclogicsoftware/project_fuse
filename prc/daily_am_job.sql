@@ -1,4 +1,7 @@
-create or replace procedure daily_am as 
+
+-- Drop old procedure name for rename.
+exec drop_procedure('daily_am');
+create or replace procedure daily_am_job as 
 begin
    update alert_table set ready_notify=1 where closed is null;
    delete from blocked_sessions_hist where insert_time > systimestamp-31;
