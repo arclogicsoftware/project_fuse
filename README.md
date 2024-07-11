@@ -6,6 +6,14 @@ If you got this far, you have successfully installed Fuse and are ready to see w
 
 ## SQL MONITORING
 
+SQL monitoring is accomplished using the SQL_LOG tool. This table will become an indispensable tool for monitoring and reviewing resource-intensive SQL statements.
+
+The `SQL_LOG` table logs SQL statements in hourly intervals. It captures a range of performance metrics, including execution time, CPU usage, and I/O wait times for each SQL statement executed within a specified timeframe. This table also includes percentile ratings and historical references, enabling users to easily identify SQL statements or execution plans that fall outside typical performance parameters.
+
+Designed for efficiency, the `SQL_LOG` table is able to store extensive SQL history for periods up to 1+ years with low storage overhead. This long-term retention capability allows for in-depth performance analysis and trend identification over longer periods of time.
+
+Fuse includes several pre-built SQL views that streamline the querying and examination of data within the `SQL_LOG` table. Additionally, delivered alerts within the Fuse monitoring tool provide proactive notifications of SQL performance issues or anomalies, ensuring timely identification and resolution of potential bottlenecks.
+
 ## STATS
 
 ## SENSORS
