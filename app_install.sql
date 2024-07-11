@@ -6,6 +6,7 @@ exec drop_scheduler_job('monitor_sql_job');
 exec drop_scheduler_job('update_object_size_data_job');
 exec drop_scheduler_job('check_sensor_views_job');
 exec drop_scheduler_job('daily_am_job');
+exec drop_scheduler_job('run_daily_am_job');
 exec drop_scheduler_job('monitor_blocked_sessions_job');
 exec drop_scheduler_job('update_sql_ptiles');
 exec drop_scheduler_job('run_minutely_job');
@@ -36,13 +37,48 @@ exec drop_scheduler_job('run_minutely_job');
 @app/update_object_size_data_proc.sql
 @app/more_stat_stuff.sql
 @stat/install_stats.sql
-@sql/install_sql.sql
+@view/install_sql.sql
 @alert/install_alerts.sql
 @sensor/install_sensors.sql
 @prc/install_prc.sql
 @app/app_synonyms.sql
 @app/app_schedules.sql
 @app/backup_privs.sql
+-- To be provided by customer.
+@app/app_customer.sql
+
+spool global_modifications.sql append
+set head off 
+set term off
+set pages 0
+set trims on 
+set feed off
+select null from dual where 1=2;
+spool off
+set head on 
+set term on
+set pages 100
+set trims off 
+set feed on
+@global_modifications.sql
+@app/global_modifications.sql 
+
+spool modifications.sql append
+set head off 
+set term off
+set pages 0
+set trims on 
+set feed off
+select null from dual where 1=2;
+spool off
+set head on 
+set term on
+set pages 100
+set trims off 
+set feed on
+@modifications.sql
+@app/modifications.sql
+
 @app/app_patch_post.sql
 @fuse/install_fuse.sql
 
@@ -64,21 +100,6 @@ begin
 end;
 /
 
-spool modifications.sql append
-set head off 
-set term off
-set pages 0
-set trims on 
-set feed off
-select null from dual where 1=2;
-spool off
-set head on 
-set term on
-set pages 100
-set trims off 
-set feed on
-@modifications.sql
-
 select 'alter package '||object_name||' compile'||decode(object_type, 'PACKAGE BODY', ' body', '')||';' x
   from user_objects where status='INVALID'
    and object_type in ('PACKAGE','PACKAGE BODY')
@@ -87,18 +108,19 @@ select 'alter '||object_type||' '||object_name||' compile;' x
   from user_objects where status='INVALID'
    and object_type in ('PROCEDURE', 'FUNCTION', 'TRIGGER', 'VIEW');
 
-alter package SQL_MONITOR compile body;
-alter package APP_ALERT compile body;
-alter package SQL_MONITOR compile body;
-alter package APP_ALERT compile body;
-alter FUNCTION SQL_TO_CSV_PIPE compile;
-alter FUNCTION SQL_TO_CSV_CLOB compile;
-alter PROCEDURE LOG_ERR compile;
-alter PROCEDURE DEBUG compile;
-alter VIEW alerts_ready_notify compile;
-alter PROCEDURE ASSERT compile;
-alter PROCEDURE PASS_TEST compile;
-alter PROCEDURE FAIL_TEST compile;
+alter package sql_monitor compile body;
+alter package app_alert compile body;
+alter package sql_monitor compile body;
+alter package app_alert compile body;
+alter function sql_to_csv_pipe compile;
+alter function sql_to_csv_clob compile;
+alter procedure log_err compile;
+alter procedure debug compile;
+alter view alerts_ready_notify compile;
+alter procedure assert compile;
+alter procedure pass_test compile;
+alter procedure fail_test compile;
+alter procedure init_test compile;
 
 select 'alter package '||object_name||' compile'||decode(object_type, 'PACKAGE BODY', ' body', '')||';' x
   from user_objects where status='INVALID'

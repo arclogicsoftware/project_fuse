@@ -5,3 +5,4 @@ secret*
 *.secret
 fuse/bar.sql
 modifications.sql
+global_modifications.sql
