@@ -18,6 +18,14 @@ Fuse includes several pre-built SQL views that streamline the querying and exami
 
 ## SENSORS
 
+## Sensors in the Toolkit
+
+Sensors are specialized views prefixed with `SENSOR__`. They monitor specific data points in the database, track changes, and log modifications over time. When a sensor view is accessed, it updates the sensor's timestamp, inserts new data, and compares it with previous data to identify and log changes. Automated monitoring reduces the need for manual checks. Sensors quickly identify important changes and irregularities.
+
+Sensors provide continuous tracking of database changes, log modifications to create a detailed record, and help ensure the consistency and security of the database.
+
+The toolkit includes default sensors such as `sensor_accounts_of_interest.sql` and `sensor_database_parameters.sql` to help users start monitoring essential database aspects quickly.
+
 ## STORAGE/SPACE/GROWTH
 
 ## ALERTING
