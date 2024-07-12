@@ -44,6 +44,7 @@ grant select on unified_audit_trail to &username;
 grant alter user to &username;
 grant execute on dbms_lock to &username;
 grant alter system to &username;
+grant select on dba_datapump_jobs to &username;
 
 
 -- Style 1
@@ -253,3 +254,5 @@ execute rdsadmin.rdsadmin_util.grant_sys_object( p_obj_name=>'DBA_PROFILES', p_g
 execute rdsadmin.rdsadmin_util.grant_sys_object( p_obj_name=>'UNIFIED_AUDIT_TRAIL', p_grantee=>'&username', p_privilege=>'SELECT');
 execute rdsadmin.rdsadmin_util.grant_sys_object( p_obj_name=>'GV_$SEGMENT_STATISTICS', p_grantee=>'&username', p_privilege=>'SELECT');
 execute rdsadmin.rdsadmin_util.grant_sys_object( p_obj_name=>'DBMS_LOCK', p_grantee=>'&username', p_privilege=>'EXECUTE');
+execute rdsadmin.rdsadmin_util.grant_sys_object( p_obj_name=>'DBA_DATAPUMP_JOBS', p_grantee=>'&username', p_privilege=>'SELECT');
+

@@ -51,6 +51,19 @@ begin
 end;
 /
 
+-- drop procedure drop_public_synonym;
+create or replace procedure drop_public_synonym (synonym_name in varchar2) as
+   v_count integer;
+begin
+   select count(*) into v_count from all_synonyms
+    where owner = 'PUBLIC' and synonym_name = upper(synonym_name);
+
+   if v_count > 0 then
+      execute immediate 'drop public synonym ' || synonym_name;
+   end if;
+end;
+/
+
 -- drop procedure drop_view;
 create or replace procedure drop_view (view_name in varchar2) is 
 begin 

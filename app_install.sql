@@ -61,7 +61,6 @@ set pages 100
 set trims off 
 set feed on
 @global_modifications.sql
-@app/global_modifications.sql 
 
 spool modifications.sql append
 set head off 
@@ -77,7 +76,6 @@ set pages 100
 set trims off 
 set feed on
 @modifications.sql
-@app/modifications.sql
 
 @app/app_patch_post.sql
 @fuse/install_fuse.sql
