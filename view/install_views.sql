@@ -3,14 +3,14 @@
 @all_sorts_view.sql
 @arch_dest_status_time_view.sql
 @archive_log_dist_view.sql
+@asm_views.sql
 @blocked_sessions_view.sql
 @create_table_dist_view.sql
-@install_views.sql
 @instance_uptime_view.sql
 @large_sorts_view.sql
 @locked_objects_view.sql
 @lockers_view.sql
-@object_size_data.sql
+@machine_last_call_day_pivot.sql
 @process_limit_view.sql
 @recycle_bin_info_view.sql
 @resource_limit_view.sql
@@ -26,3 +26,6 @@
 @table_stats_view.sql
 @tsinfo_view.sql
 @unified_audit_review_view.sql
+@unq_jobs_failing_in_last_24hr.sql
+@username_last_call_day_pivot.sql
+@program_last_call_day_pivot.sql

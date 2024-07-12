@@ -1,5 +1,6 @@
-create or replace view machine_last_call_day_dist as
-select machine,
+
+create or replace view program_last_call_day_pivot as
+select program||' ('||count(*)||')' program,
        sum(decode(last_call_days, 0, 1, 0)) "0",
        sum(decode(last_call_days, 1, 1, 0)) "1",
        sum(decode(last_call_days, 2, 1, 0)) "2",
@@ -33,9 +34,9 @@ select machine,
        sum(decode(last_call_days, 30, 1, 0)) "30",
        sum(case when last_call_days > 30 then 1 else 0 end) ">30"
   from (
-        select machine,
+        select program,
         round(last_call_et / 86400) last_call_days
           from gv$session
        )
- group by machine
- order by machine;
+ group by program
+ order by program;

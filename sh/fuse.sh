@@ -62,6 +62,9 @@ EOF
       if [[ -n ${MAIL_FORWARD:-} ]]; then
          cat "${SND_MSG_TMP}" >> "${SND_MSG_TMP}1"
          ssh ${MAIL_FORWARD} 'cat >> mail_forward.log' < "${SND_MSG_TMP}1"
+      elif [[ -n "${SENDGRID_API_KEY}" ]]; then 
+         cat "${SND_MSG_TMP}1"
+         cat "${SND_MSG_TMP}" | sendgrid_api "${TO}" "${REPLY_EMAIL}" "${SUBJECT}"
       else
          cat "${SND_MSG_TMP}1"
          mailx -r "${REPLY_EMAIL}" ${SMTP_SERVER_OPTION} -s "${SUBJECT}" "${TO}" < "${SND_MSG_TMP}"
@@ -71,7 +74,7 @@ EOF
 }
 
 function send_text {
-   # Send an text. Make sure fuse.sh is sourced in REPLY_EMAIL is defined and possibly DBA_TEXT.
+   # Send an text. Make sure g.sh is sourced in REPLY_EMAIL is defined and possibly DBA_TEXT.
    # echo "foo" | send_text "{SUBJECT}" "TO"
    SND_MSG_TMP="$(get_tmp_file)2"
    EMAIL_PREFIX=${EMAIL_PREFIX:-"$(hostname -s)"}
@@ -316,3 +319,40 @@ function num_sum {
    fi
    ) | awk '{sum+=$1}; END {printf "%.'${d}'f\n" ,sum}'
 }
+
+function sendgrid_api {
+  local TO=$1
+  local FROM=$2
+  local SUBJECT=$3
+  local MESSAGE_BODY=""
+
+  # Read multiple lines from STDIN and append to MESSAGE_BODY
+  while IFS= read -r line; do
+    MESSAGE_BODY+="$line\n"
+  done
+
+  # Remove the trailing newline character
+  MESSAGE_BODY=$(echo -e "$MESSAGE_BODY" | sed '$ s/\\n$//')
+
+  # Create JSON payload
+  local JSON_PAYLOAD=$(jq -n \
+    --arg to "$TO" \
+    --arg from "$FROM" \
+    --arg subject "$SUBJECT" \
+    --arg body "$MESSAGE_BODY" \
+    '{
+      personalizations: [{to: [{email: $to}]}],
+      from: {email: $from},
+      subject: $subject,
+      content: [{type: "text/plain", value: $body}]
+    }')
+
+  curl --request POST \
+    --url https://api.sendgrid.com/v3/mail/send \
+    --header "Authorization: Bearer $SENDGRID_API_KEY" \
+    --header 'Content-Type: application/json' \
+    --data "$JSON_PAYLOAD"
+}
+
+
+
