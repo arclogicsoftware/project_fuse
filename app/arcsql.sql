@@ -1118,24 +1118,6 @@ begin
 end;
 /
 
-create or replace procedure set_last_time (
-   p_name in varchar2) is 
-begin 
-   app_config.set_param_str (
-      p_name=>'last_time_'||p_name,
-      p_str=>to_char(sysdate, 'YYYYMMDDHH24MISS'));
-end;
-/
-
-create or replace function get_last_time (
-   p_name in varchar2) return date is 
-   date_str varchar2(32);
-begin 
-   date_str := nvl(app_config.get_param_str(p_name=>'last_time_'||p_name), to_char(sysdate, 'YYYYMMDDHH24MISS'));
-   return to_date(date_str, 'YYYYMMDDHH24MISS');
-end;
-/
-
 create or replace procedure start_timer (
    p_name in varchar2) is 
 begin
