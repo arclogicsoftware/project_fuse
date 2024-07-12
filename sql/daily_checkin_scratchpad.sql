@@ -239,10 +239,9 @@ declare
   end;  
 /  
 
-
-select * from machine_last_call_day_dist;
--- ToDo: Add username view like above.
-
+select * from machine_last_call_day_pivot order by 2 desc;
+select * from program_last_call_day_pivot order by 2 desc;
+select * from username_last_call_day_pivot order by 2 desc;
 
 select stat_name, stat_group, stat_type, stat_label, jan, feb, mar, apr, may, jun  from stat_table 
  where str_avg_list(feb||','||mar||','||apr) < may*.8 order by stat_group, decode(str_avg_list(feb||','||mar||','||apr), 0, 999, may/str_avg_list(feb||','||mar||','||apr)) desc;
