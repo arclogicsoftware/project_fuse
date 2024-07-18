@@ -4,11 +4,12 @@ procedure evaluate_alerts is
    -- Check all alerts generated in the last day.
    cursor alerts is 
    select * from alert_table
-    where closed is not null
-       or closed > last_eval;
+    where (closed is not null
+       or closed > last_eval);
    v_ready_notify number := 0;
 begin
    for a in alerts loop 
+      -- debug('evaluate_alerts: '||a.alert_name);
       -- Continue to next record if alert can not notify.
       if alert_can_notify_yn (
             p_alert_name=>a.alert_name,
@@ -24,7 +25,7 @@ begin
       end if;
       -- Continue to next record if the alert_delay has not been met.
       if a.opened + numtodsinterval(nvl(a.alert_delay, 0), 'minute') > systimestamp then 
-         debug2('Alert delay not met');
+         -- debug('Alert delay not met');
          continue;
       end if;
       -- Continue to next record if the alert is closed and last_eval is after the close date.
@@ -40,7 +41,7 @@ begin
          a.last_notify + numtodsinterval(a.notify_interval, 'minute') < systimestamp then 
          v_ready_notify := 1;
       end if;
-      debug2('v_ready_notify='||v_ready_notify);
+      -- debug('v_ready_notify='||v_ready_notify);
       update alert_table 
          set last_eval=systimestamp,
              ready_notify=v_ready_notify
@@ -258,7 +259,7 @@ begin
       -- If no record was updated in alert table we can close the alert if it is open.
       select count(*) into n from alert_table 
        where alert_view=v.view_name 
-         and closed is not null
+         and closed is null
          and updated < systimestamp - interval '30' second;
       -- n can be > 1 because long alerts can have multiple rows.
       if n > 0 then
@@ -266,7 +267,7 @@ begin
          update alert_table
             set closed=systimestamp
           where alert_view=v.view_name
-            and closed is not null
+            and closed is null
             and updated < systimestamp - interval '30' second;
       end if;
 

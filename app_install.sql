@@ -53,14 +53,14 @@ set term off
 set pages 0
 set trims on 
 set feed off
-select null from dual where 1=2;
+select null from dual;
 spool off
 set head on 
 set term on
 set pages 100
 set trims off 
 set feed on
-@global_modifications.sql
+@./global_modifications.sql
 
 spool modifications.sql append
 set head off 
@@ -68,14 +68,14 @@ set term off
 set pages 0
 set trims on 
 set feed off
-select null from dual where 1=2;
+select null from dual;
 spool off
 set head on 
 set term on
 set pages 100
 set trims off 
 set feed on
-@modifications.sql
+@./modifications.sql
 
 @app/app_patch_post.sql
 @fuse/install_fuse.sql
