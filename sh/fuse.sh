@@ -354,5 +354,35 @@ function sendgrid_api {
     --data "$JSON_PAYLOAD"
 }
 
+function start_oracle {
+   if [[ -n "${1}" ]]; then 
+      . load_oraenv.sh "${1}"
+   fi
+   if [[ -z ${ORACLE_HOME} ]]; then
+      echo "ORACLE_HOME is not set. Exiting start_oracle function."
+      return 
+   fi
+   lsnrctl start
+   sqlplus / as sysdba <<EOF
+startup;
+exit;
+EOF
+}
+
+function stop_oracle {
+   if [[ -n "${1}" ]]; then 
+      . load_oraenv.sh "${1}"
+   fi
+   if [[ -z ${ORACLE_HOME} ]]; then
+      echo "ORACLE_HOME is not set. Exiting start_oracle function."
+      return 
+   fi
+   lsnrctl stop
+   sqlplus / as sysdba <<EOF
+shutdown immediate;
+exit;
+EOF
+}
+
 
 

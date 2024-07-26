@@ -1,42 +1,42 @@
-set pagesize 100
-set lines 140
+set pagesize 200
+set lines 181
 set feed off
 set trimout on
 
-col status format a8 trunc
-col alert_level format a10 trunc heading "LEVEL"
-col alert_name format a30 trunc heading "NAME"
-col alert_type format a25 trunc heading "TYPE"
-col hrs_open format 9999.9 trunc heading "HRS OPEN"
-col alert_info format a45 trunc heading "INFO"
+col alert_status format a8 trunc heading "STATUS"
+col alert_text format a55 trunc heading "ALERT"
+col alert_meta format a45 trunc heading "META"
+col alert_info format a30 trunc heading "INFO"
+col alert_id format 99999 heading "ID"
 
-select status,
-       alert_level,
-       alert_name,
-       alert_type,
-       hrs_open,
-       alert_info
- from alerts_ready_notify
- order by to_number(hrs_open);
+select * from alerts_ready_notify;
 
-set lines 140
-set pages 100
-set feed off
-col log_time format a18
-col log_type format a12
-col log_text format a90
-
-select to_char(log_time, 'YYYY-MM-DD HH24:MI') log_time,
-       log_type,
-       log_text
-  from log_table
- where ready_notify=1
- order
-    by log_time;
-
-update log_table set ready_notify=0 where ready_notify=1;
+update alert_table
+   set notify_count=notify_count+1,
+       ready_notify=0,
+       last_notify=systimestamp
+ where ready_notify=1;
 
 commit;
+
+-- set lines 140
+-- set pages 100
+-- set feed off
+-- col log_time format a18
+-- col log_type format a12
+-- col log_text format a90
+
+-- select to_char(log_time, 'YYYY-MM-DD HH24:MI') log_time,
+--        log_type,
+--        log_text
+--   from log_table
+--  where ready_notify=1
+--  order
+--     by log_time;
+
+-- update log_table set ready_notify=0 where ready_notify=1;
+
+-- commit;
 
 col lock_level format 99999
 col username format a20 trunc
@@ -103,10 +103,3 @@ select block,
          where ready_notify=1
            and alert_name='blocked_sessions' and closed is null) >= 1;
 
-update alert_table
-   set notify_count=notify_count+1,
-       ready_notify=0,
-       last_notify=systimestamp
- where ready_notify=1;
-
-commit;

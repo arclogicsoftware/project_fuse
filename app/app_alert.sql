@@ -29,26 +29,26 @@ end;
 -- Do not modify objects below here in your modifications.sql file.
 -- ----------------------------------------------------------------------
 
--- This view is used to determine which alerts are ready to be notified.
+-- This view is used to determine which alerts are ready to be notified. There is a public synonym
+-- for this view so it can easily be referenced by SYS if checking alerts from runs_frequent.sh with
+-- get_alerts.sql. 
 create or replace view alerts_ready_notify as
-select decode(closed, null, 'OPEN', 'CLOSED') status,
-		 a.alert_level,
-		 a.alert_name,
-		 a.alert_type,
-		 mins_between_timestamps(opened, nvl(closed, systimestamp))/60 hrs_open,
-		 a.alert_info,
-		 a.notify_count,
-		 a.alert_id
+select decode(closed, null, 'OPEN', 'CLOSED') alert_status,
+       a.alert_level ||' ' || a.alert_name alert_text,
+       'open='||round(mins_between_timestamps(opened, nvl(closed, systimestamp))/60, 1)||', notify#='||notify_count||', closed='||round(mins_between_timestamps(systimestamp, nvl(closed, systimestamp))/60, 1) alert_meta,
+       a.alert_info,
+       a.alert_id
   from alert_table a
- where ready_notify=1;
+ where ready_notify=1
+ order 
+    by 1 desc, closed desc;
 
 -- This procedure uses the view above to send notifications if the job which calls it is enabled.
 create or replace procedure check_ready_notify as 
 	cursor alerts is select * from alerts_ready_notify;
 begin 
 	for a in alerts loop
-		-- ToDo: Add code to send alerts
-		debug('Fake send email for alert: '||a.alert_name);
+		debug('Fake send email for alert: '||a.alert_text);
 		update alert_table
 			set ready_notify=0,
 				 last_notify=systimestamp,

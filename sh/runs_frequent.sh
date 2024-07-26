@@ -57,6 +57,8 @@ fi
 
 if [[ "${1}" == "DAILY_AM" ]]; then
    ${HOME}/clean_disk.sh
+   # Check rman logs if RMAN_LOG_DIR is defined in local.env for unexpected errors using the rman_log_filter function.
+   check_rman_logs
    (
    cat <<EOF
 $(date)

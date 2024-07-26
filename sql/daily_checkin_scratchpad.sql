@@ -1,8 +1,45 @@
+
+select * from dba_objects where object_name='LOG_TABLE';
+
+select * from obj_size_data order by jul desc;
+
+select * from tsinfo order by 6 desc;
+
+select * from sql_log_hourly_stat order by 1 desc, 2 desc;
+select * from sql_log_weekly_stat order by 1 desc;
+select * from sql_log_monthly_stat order by 1 desc;
+
+select * from alert_table where closed is not null order by opened desc;
+select * from alert_table where closed is null order by opened desc;
+delete from alert_table;
+
+select * from sensor_table order by last_time desc;
+select count(*), sensor_id, trunc(created) from sensor_hist group by sensor_id, trunc(created) order by 3 desc;
+select * from sensor_hist where sensor_id=62 order by created desc;
+
+select * from blocked_sessions;
+select * from blocked_sessions_hist order by insert_time desc;
+select * from gsi_blocked_sessions_view;
+
+select * from long_active_calls;
+
+select * from sparse_tables order by 5 desc;
+
+select * from archive_log_dist order by 1 desc;
+
+
+select * from rman_status order by start_time desc;
+select * from v$rman_backup_job_details where status = 'COMPLETED' order by start_time desc;
+
 SELECT 'drop table '||owner||'.'||segment_name||';' x, to_gb(bytes) gbytes, owner, segment_name table_name
 FROM dba_segments a
 WHERE segment_name LIKE 'F%\_%' ESCAPE '\' 
   AND segment_type = 'TABLE' and bytes > 1*1024*1024*1024
 ORDER BY bytes DESC;
+
+select * from machine_last_call_day_pivot order by 2 desc;
+select * from program_last_call_day_pivot order by 2 desc;
+select * from username_last_call_day_pivot order by 2 desc;
 
 -- ------------------------------------------------------------------------------
 -- SQL - SQL PERFORMANCE - SQL LOG - OTHER SQL ISSUES
@@ -22,6 +59,7 @@ select round(cpu_time/1000000) cpu_sec,
 
 select * from gv$sql where sql_id='d3nkkzv7fj5j0';
 
+create or replace view long_active_calls as 
 select processid, sid, serial#, username, machine, sql_id, round(last_call_et/60/60, 1) call_running_for_hours, module, logon_time from (
 select b.spid processid,
        a.*
@@ -43,73 +81,11 @@ select * from sql_log_hourly_crosstab;
 select * from sql_log_daily_crosstab;
 select * from sql_log_monthly_crosstab order by 7 desc;
 select * from sql_log_weekly_crosstab where hrs0_elap_this_wk > hrs1 or hrs0_elap_this_wk > hrs2;
-select * from sql_log where sql_id='2u48sxjnmm9cj' order by 8 desc;
-
-select * from sql_log where force_matching_signature=17013432521490503953 order by 8 desc;
-
-desc sql_log;
-
-update sql_log a 
-       set a.fms_elapsed_seconds=(
-           select sum(elapsed_seconds)
-              from sql_log b
-            where b.datetime=trunc(sysdate, 'HH24') 
-              and b.force_matching_signature=17013432521490503953
-              and b.force_matching_signature!=0)
-     where a.datetime = trunc(sysdate, 'HH24')
-       and a.force_matching_signature!=0;
-
-select * from sql_log where sql_id='d3nkkzv7fj5j0' order by update_time desc;
-
+select * from sql_log_weekly_crosstab order by 9 desc;
 
 select * from sql_log_hourly_stat order by 1 desc, 2 desc;
 select * from sql_log_weekly_stat order by 1 desc;
 select * from sql_log_monthly_stat order by 1 desc;
-
-
-select substr(sql_text, 1, 10) sql_text,
-       force_matching_signature,
-       datetime,
-       sum(update_count) update_count,
-       sum(elapsed_seconds) elapsed_seconds,
-       sum(cpu_seconds) cpu_seconds,
-       sum(user_io_wait_secs) user_io_wait_secs,
-       round(avg(elap_secs_per_exe), 1) elap_secs_per_exe,
-       sum(secs_0_1) secs_0_1,
-       sum(secs_2_5) secs_2_5,
-       sum(secs_6_10) secs_6_10,
-       sum(secs_11_60) secs_11_60,
-       sum(secs_61_plus) secs_61_plus,
-       sum(rows_processed) rows_processed,
-       service,
-       module,
-       action,
-       round(avg(elapsed_seconds_ptile), 1) elapsed_seconds_ptile,
-       round(avg(elap_secs_per_exe_ptile), 1) elap_secs_per_exe_ptile,
-       round(avg(executions_ptile), 1) executions_ptile,
-       round(avg(elap_secs_per_exe_med), 1) elap_secs_per_exe_med,
-       round(avg(elap_secs_per_exe_avg), 1) elap_secs_per_exe_avg
-  from sql_log
- group
-    by substr(sql_text, 1, 10),
-       force_matching_signature,
-       datetime,
-       service,
-       module,
-       action
-having sum(elapsed_seconds) > 60
- order
-    by 3 desc, 5 desc;
-    
-select sql_text,
-       round(sum(elapsed_seconds/60/60), 1) total_elap_hrs,
-       sum(executions) total_executes, 
-       round(sum(elapsed_seconds)/sum(executions), 2) secs_per_exe
-  from sql_log
- where datetime>=sysdate-2/24
- group
-    by sql_text
- order by 2 desc;
 
 -- buftvjq95d6ak Federal (bad plan, went to .5s/exe)
 
@@ -152,81 +128,6 @@ select * from sql_log where sql_id='b6usrg82hwsa3' order by update_time desc;
 select * from sql_log_sql_id_hourly_stat where sql_id='b6usrg82hwsa3' order by 3 desc;
 select * from sql_log_sql_id_weekly_stat where sql_id='b6usrg82hwsa3';
 
-
-set lines 140
-set pages 1000
-
-column datetime format a25
-column mon format 9999 trunc
-column tue format 9999 trunc
-column wed format 9999 trunc
-column thu format 9999 trunc
-column fri format 9999 trunc
-column sat format 9999 trunc
-column sun format 9999 trunc
-col sql_id format a20
-col sql_text format a40 trunc
-
-prompt "ALL SQL Elapsed Time (Hours Per Day)"
-
-select datetime,
-       sum(decode(day_of_week, 'MON', x, 0)) mon,
-       sum(decode(day_of_week, 'TUE', x, 0)) tue,
-       sum(decode(day_of_week, 'WED', x, 0)) wed,
-       sum(decode(day_of_week, 'THU', x, 0)) thu,
-       sum(decode(day_of_week, 'FRI', x, 0)) fri,
-       sum(decode(day_of_week, 'SAT', x, 0)) sat,
-       sum(decode(day_of_week, 'SUN', x, 0)) sun
-  from (
-select trunc(datetime, 'iw') datetime,
-       to_char(datetime, 'DY') day_of_week,
-       round(sum(elapsed_seconds/60/60)) x
-  from sql_log 
- where datetime >= trunc(sysdate-14)
- group
-    by trunc(datetime, 'iw'),
-       to_char(datetime, 'DY')
-       )
- group
-    by datetime
- order
-    by 1 desc;
-
-prompt "SQL ID Elapsed Time (Hours Per Day)"
-
-select datetime,
-       sql_id,
-       sql_text,
-       round(sum(decode(day_of_week, 'MON', x, 0)), 1) mon,
-       round(sum(decode(day_of_week, 'TUE', x, 0)), 1) tue,
-       round(sum(decode(day_of_week, 'WED', x, 0)), 1) wed,
-       round(sum(decode(day_of_week, 'THU', x, 0)), 1) thu,
-       round(sum(decode(day_of_week, 'FRI', x, 0)), 1) fri,
-       round(sum(decode(day_of_week, 'SAT', x, 0)), 1) sat,
-       round(sum(decode(day_of_week, 'SUN', x, 0)), 1) sun,
-       round(sum(x), 1) ttl
-  from (
-select trunc(datetime, 'iw') datetime,
-       to_char(datetime, 'DY') day_of_week,
-       sql_id,
-       sql_text,
-       round(sum(elapsed_seconds/60/60), 1) x
-  from sql_log 
- where datetime >= trunc(sysdate-4)
- group
-    by trunc(datetime, 'iw'),
-       to_char(datetime, 'DY'),
-       sql_id,
-       sql_text
-       )
- group
-    by datetime,
-       sql_id,
-       sql_text
-having sum(x) > 1
- order
-    by sum(x) desc;
-
 declare  
   h number;  
  begin  
@@ -239,9 +140,7 @@ declare
   end;  
 /  
 
-select * from machine_last_call_day_pivot order by 2 desc;
-select * from program_last_call_day_pivot order by 2 desc;
-select * from username_last_call_day_pivot order by 2 desc;
+
 
 select stat_name, stat_group, stat_type, stat_label, jan, feb, mar, apr, may, jun  from stat_table 
  where str_avg_list(feb||','||mar||','||apr) < may*.8 order by stat_group, decode(str_avg_list(feb||','||mar||','||apr), 0, 999, may/str_avg_list(feb||','||mar||','||apr)) desc;
@@ -452,9 +351,6 @@ alter database tempfile '+DATA/PRDCDB1/650CA449A619EEB4E0532746010A1A49/TEMPFILE
 
 -- PURGE DBA_RECYCLEBIN;
 
-select * from rman_status order by start_time desc;
-
-select * from v$rman_backup_job_details where status = 'COMPLETED' order by start_time desc;
 
 set pages 1000
 set lines 180
@@ -615,26 +511,8 @@ select * from gv$archived_log;
 
 select * from gv$archive_dest_status a where gap_status is not null;
 
-select * from archive_log_dist order by 1 desc;
+
 
 select count(*) from gv$archived_log where standby_dest='YES' and applied != 'YES';
 select * from gv$archive_dest_status where applied_seq# > 0 and gap_status not in ('NO GAP');
 
-select (extract(day from val)*86400)+(extract(hour from val)*3600)+(extract(minute from val)*60)+
-       (extract(second from val)) secs,
-       name,
-       inst_id
-  from (
-select to_dsinterval(value) val,
-      a.* 
-      from gv$dataguard_stats a where name in ('transport lag', 'apply lag'));
-
-select to_char(timestamp, 'YYYY-MM-DD HH24:MI:SS') timestamp,
-       facility,
-       severity,
-       dest_id,
-       error_code,
-       message
-  from v$dataguard_status a 
- order
-    by timestamp desc;

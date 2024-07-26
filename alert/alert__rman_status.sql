@@ -4,5 +4,5 @@ select 'warning' alert_level,
        'status='||status||', gb_processed='||gb_processed alert_info,
        'database' alert_type
   from rman_status
- where status = 'FAILED'
-   and end_time >= sysdate;
+ where status not in ('COMPLETED', 'COMPLETED WITH WARNINGS', 'RUNNING', 'RUNNING WITH WARNINGS')
+   and end_time >= sysdate-1;

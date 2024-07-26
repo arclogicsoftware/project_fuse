@@ -9,6 +9,7 @@ procedure evaluate_alerts is
    v_ready_notify number := 0;
 begin
    for a in alerts loop 
+      v_ready_notify := 0;
       -- debug('evaluate_alerts: '||a.alert_name);
       -- Continue to next record if alert can not notify.
       if alert_can_notify_yn (
@@ -24,7 +25,7 @@ begin
          continue;
       end if;
       -- Continue to next record if the alert_delay has not been met.
-      if a.opened + numtodsinterval(nvl(a.alert_delay, 0), 'minute') > systimestamp then 
+      if a.opened + numtodsinterval(nvl(a.alert_delay, 0), 'minute') < systimestamp then 
          -- debug('Alert delay not met');
          continue;
       end if;
@@ -33,15 +34,19 @@ begin
          continue;
       end if;
       if a.notify_count = 0 then 
+         debug('First notify');
          v_ready_notify := 1;
       end if;
       -- Check for subsequent notifications if notify interval is set.
       if a.notify_count > 0 and 
          a.notify_interval > 0 and 
          a.last_notify + numtodsinterval(a.notify_interval, 'minute') < systimestamp then 
+         debug('Time to re-notify');
          v_ready_notify := 1;
       end if;
-      -- debug('v_ready_notify='||v_ready_notify);
+      if v_ready_notify = 1 then
+         debug('Setting ready_notify=1 where alert_id='||a.alert_id||', '||a.alert_name);
+      end if;
       update alert_table 
          set last_eval=systimestamp,
              ready_notify=v_ready_notify
@@ -242,7 +247,7 @@ begin
 
       -- Added _epoch which will help smooth the change to timestamp for epoch_now by resetting the next_check.
       -- I will delete the values ending with _next_check from the cache table in app_patch_post.sql.
-      next_check := get_cache_num(p_key=>v.view_name||'_next_check_epoch', p_default=>0);
+      next_check := get_cache_num(p_key=>v.view_name||'_next_check', p_default=>0);
 
       if epoch_now < next_check then 
          continue;
@@ -263,6 +268,13 @@ begin
          and updated < systimestamp - interval '30' second;
       -- n can be > 1 because long alerts can have multiple rows.
       if n > 0 then
+         -- Delete records which were pending (alert_delay not met) and not updated.
+         delete from alert_table
+          where alert_view=v.view_name
+            and closed is null
+            and updated < systimestamp - interval '30' second
+            and opened + numtodsinterval(nvl(alert_delay, 0), 'minute') < systimestamp
+            and alert_delay > 0;
          -- In we have a view with >1 rows we only want to close the rows that were not just updated.
          update alert_table
             set closed=systimestamp

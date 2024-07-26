@@ -29,3 +29,4 @@
 @unq_jobs_failing_in_last_24hr.sql
 @username_last_call_day_pivot.sql
 @program_last_call_day_pivot.sql
+@long_active_calls_view.sql
